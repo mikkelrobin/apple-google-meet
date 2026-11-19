@@ -1,4 +1,4 @@
-# Calendar Meet 0.2.0 setup
+# Calendar Meet 0.3.0 setup
 
 ## Google — once per team
 
@@ -27,7 +27,7 @@ repository. The user-supplied client is kept in local ignored Configuration/.
 ## Install and use without Apple membership
 
 Build or download an explicitly labelled unsigned preview. Drag the app into
-Applications, open it, and use Connect Google. If macOS blocks this specific app,
+Applications, open it, click its menu-bar icon, and use Sign in with Google. If macOS blocks this specific app,
 review it and use the per-app approval flow in Privacy & Security if appropriate.
 No global Gatekeeper changes or removal of quarantine are needed by the app.
 Managed-device policies may prohibit this entirely.
@@ -38,7 +38,8 @@ app opens in the background, creates the meeting, and returns its URL automatica
 There is no confirmation or copy/paste step. The bridge has a 55-second timeout;
 Calendar may impose its own earlier deadline.
 
-The app can be closed between uses. No shared Keychain or App Group is involved.
+Launch at Login defaults on. Click the menu-bar icon to reconnect or toggle it;
+right-click for Quit. The app has no Dock icon. It can be quit between uses. No shared Keychain or App Group is involved.
 The app alone stores credentials in the classic macOS login Keychain (ACL based),
 and only returns the finished URL or error to the waiting extension. Ad-hoc signed
 updates may cause Keychain access prompts because the code identity changes. Never
@@ -84,7 +85,8 @@ until real-account tests have passed.
   already have been created if Google's response was lost; POST is not retried.
 - Cancel or remove a Calendar event: an already created Meet space is not deleted.
   EventKit supplies a room type, not event dates/attendees or a cancellation hook.
-- Disconnect can revoke Google access or only remove this app's local credentials.
+- To remove access, use your Google Account’s third-party connections settings.
+  The minimal app offers reconnect; it no longer exposes disconnect controls.
 - Before sharing widely, test actual Calendar insertion, save/reopen, invitations,
   recurrence and joining on a colleague's device. Test Intel and oldest supported
   macOS on real hardware. No attendees are added by the app itself.

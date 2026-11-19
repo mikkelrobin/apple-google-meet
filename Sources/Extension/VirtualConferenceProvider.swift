@@ -19,8 +19,14 @@ final class VirtualConferenceProvider: EKVirtualConferenceProvider {
             if error != nil { bridge.cancel() }
         }
         let url = try await bridge.response().result()
-        return EKVirtualConferenceDescriptor(title: "Google Meet", urlDescriptors: [
-            EKVirtualConferenceURLDescriptor(title: "Join Google Meet", url: url)
-        ], conferenceDetails: "Join with Google Meet: \(url.absoluteString)")
+        return Self.conferenceDescriptor(url: url)
+    }
+
+    // Apple's single-join-option example leaves titles nil. Titles describe
+    // rooms/alternate URLs; they are not a public API for the action button label.
+    static func conferenceDescriptor(url: URL) -> EKVirtualConferenceDescriptor {
+        EKVirtualConferenceDescriptor(title: nil, urlDescriptors: [
+            EKVirtualConferenceURLDescriptor(title: nil, url: url)
+        ], conferenceDetails: nil)
     }
 }

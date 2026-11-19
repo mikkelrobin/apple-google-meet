@@ -1,4 +1,4 @@
-Calendar Meet 0.2.0 — membership-free architecture experiment, macOS 13+, Intel and Apple Silicon.
+Calendar Meet 0.3.0 — menu-bar app and conference presentation, macOS 13+, Intel and Apple Silicon.
 
 **UNSIGNED PREVIEW:** ad-hoc integrity signature only. No Developer ID or Apple
 notarization. macOS or managed-device policies may block installation.
@@ -17,3 +17,8 @@ built client-bundled installer is a separate artifact.
 
 See docs/VERIFICATION.md for exact live Calendar results and remaining limits;
 API compilation and extension discovery alone do not prove integration works.
+
+Minimal menu-bar-only UI, original icon, Google reconnect, Launch at Login default
+on and right-click Quit. Native single-link EventKit descriptors omit redundant
+titles/notes. Calendar still owns the visible Open/Join label; no private API or
+Google Calendar event duplication is used. See docs/JOIN-BUTTON.md.

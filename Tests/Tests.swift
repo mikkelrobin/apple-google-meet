@@ -76,6 +76,12 @@ struct Tests {
             do { _ = try await api.createSpace(accessToken: "access"); fatalError("Expected HTTP error") }
             catch { expect(!error.localizedDescription.contains("DO_NOT_DISPLAY_SECRET"), "Response body not leaked") }
         }
+        let conference = VirtualConferenceProvider.conferenceDescriptor(url: link)
+        expect(conference.urlDescriptors.count == 1, "Exactly one preferred conference entry point")
+        expect(conference.urlDescriptors.first?.url == link, "Direct Google Meet URL reaches EventKit unchanged")
+        expect(conference.title == nil && conference.urlDescriptors.first?.title == nil,
+               "Single-option descriptor uses system presentation")
+        expect(conference.conferenceDetails == nil, "No duplicated generic URL in conference notes")
         let provider = VirtualConferenceProvider()
         let rooms = try await provider.fetchAvailableRoomTypes()
         expect(rooms.count == 1 && rooms[0].title == "Google Meet", "Single Calendar menu option")

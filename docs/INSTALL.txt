@@ -1,11 +1,11 @@
-Calendar Meet 0.2.0 — macOS 13+, Apple Silicon and Intel
+Calendar Meet 0.3.0 — macOS 13+, Apple Silicon and Intel
 
 1. Open the DMG and drag Calendar Meet to Applications.
 2. Open Calendar Meet. This unsigned preview has no Developer ID signature or
    Apple notarization; macOS may require you to approve this specific app in
    System Settings > Privacy & Security. Organization-managed Macs may block it.
 3. If a Google client is not bundled, import your team's Desktop OAuth JSON.
-4. Click Connect Google and finish sign-in with your Workspace account.
+4. Click the menu-bar icon, then Sign in with Google and finish sign-in with your Workspace account.
 5. Enable the Calendar Meet extension in System Settings if requested, then
    fully quit and reopen Apple Calendar.
 6. Create or edit an event. Choose Google Meet in Add Location or Video Call.
@@ -15,7 +15,9 @@ No Apple membership, App Group or shared Keychain entitlement is used. OAuth
 credentials stay in the containing app's macOS login Keychain. The Calendar
 extension receives only a Meet URL or error over a short-lived local callback.
 
-The app can be closed between uses; the extension opens it in the background.
+Click the menu-bar icon to reconnect or change Launch at Login (default on).
+Right-click the icon to Quit. There is no Dock icon. The extension can reopen it
+in the background when needed.
 Complete Google setup before using the Calendar menu. The local integration
 allows other apps on your Mac to request new meeting spaces; OAuth credentials
 are never shared with those callers.

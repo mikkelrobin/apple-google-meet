@@ -15,6 +15,7 @@ for bundle in (app, ext):
     assert entitlements['com.apple.security.network.client']
     assert 'com.apple.security.application-groups' not in entitlements
     assert 'keychain-access-groups' not in entitlements
+assert plistlib.loads((app/'Contents/Info.plist').read_bytes())['LSUIElement'] is True
 info=plistlib.loads((ext/'Contents/Info.plist').read_bytes())
 assert info['NSExtension']['NSExtensionPointIdentifier'] == 'com.apple.calendar.virtualconference'
 assert info['NSExtension']['NSExtensionPrincipalClass'] == 'MeetConference.VirtualConferenceProvider'

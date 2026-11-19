@@ -56,6 +56,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v0.2.0-signed.${GITHUB_RUN_NUMBER}" dist/* --draft \
-            --target "$GITHUB_SHA" --title 'Calendar Meet 0.2.0 — Signed and notarized' \
+          gh release create "v0.3.0-signed.${GITHUB_RUN_NUMBER}" dist/* --draft \
+            --target "$GITHUB_SHA" --title 'Calendar Meet 0.3.0 — Signed and notarized' \
             --notes 'Developer ID signed and notarized. Complete the real-account Calendar checklist in docs/SETUP.md before publishing to colleagues.'

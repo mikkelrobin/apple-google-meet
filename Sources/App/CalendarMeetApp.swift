@@ -1,15 +1,60 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import ServiceManagement
 
 @main
 struct CalendarMeetApp: App {
-    @StateObject private var model = SetupModel()
-    var body: some Scene {
-        WindowGroup {
-            SetupView(model: model).onOpenURL { model.handleBridge($0) }.handlesExternalEvents(preferring: ["*"], allowing: ["*"]).frame(width: 520).fixedSize(horizontal: false, vertical: true)
-        }.windowResizability(.contentSize)
-        .commands { CommandGroup(replacing: .newItem) {} }
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    var body: some Scene { Settings { EmptyView() } }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let model = SetupModel()
+    private var item: NSStatusItem!
+    private let popover = NSPopover()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        if let button = item.button {
+            let icon = NSImage(contentsOf: Bundle.main.url(forResource: "AppIcon", withExtension: "icns")!)
+            icon?.size = NSSize(width: 19, height: 19)
+            button.image = icon
+            button.toolTip = "Calendar Meet"
+            button.target = self; button.action = #selector(clicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
+        popover.behavior = .transient
+        popover.contentViewController = NSHostingController(rootView: SetupView(model: model))
+        model.configureLoginDefault()
+    }
+    func application(_ application: NSApplication, open urls: [URL]) {
+        urls.forEach { model.handleBridge($0) }
+    }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showPopover(); return false
+    }
+    @objc private func clicked() {
+        model.refreshLoginStatus()
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            popover.performClose(nil)
+            let menu = NSMenu()
+            menu.addItem(withTitle: "Open Calendar Meet", action: #selector(showPopover), keyEquivalent: "")
+            menu.addItem(.separator())
+            let quit = menu.addItem(withTitle: "Quit Calendar Meet", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            quit.target = NSApp
+            menu.items.first?.target = self
+            item.menu = menu; item.button?.performClick(nil); item.menu = nil
+        } else if popover.isShown { popover.performClose(nil) }
+        else { showPopover() }
+    }
+    @objc private func showPopover() {
+        guard let button = item?.button else { return }
+        model.refreshLoginStatus()
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
@@ -19,7 +64,26 @@ final class SetupModel: ObservableObject {
     @Published var connected = false
     @Published var busy = false
     @Published var message = ""
-    @Published var meeting: URL?
+    @Published var launchAtLogin = false
+    func refreshLoginStatus() {
+        launchAtLogin = [.enabled, .requiresApproval].contains(SMAppService.mainApp.status)
+    }
+    func configureLoginDefault() {
+        if !UserDefaults.standard.bool(forKey: "launchAtLoginConfigured") {
+            setLaunchAtLogin(true)
+        } else { refreshLoginStatus() }
+    }
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled { try SMAppService.mainApp.register() }
+            else { try SMAppService.mainApp.unregister() }
+            UserDefaults.standard.set(true, forKey: "launchAtLoginConfigured")
+            message = SMAppService.mainApp.status == .requiresApproval
+                ? "Allow Calendar Meet in System Settings → General → Login Items." : ""
+        } catch { message = "Could not update Launch at Login. Try again after moving the app to Applications." }
+        refreshLoginStatus()
+    }
+    var signingIn: Bool { loginTask != nil }
     private var loginTask: Task<Void, Never>?
     init() {
         do { if let credential = try Vault.load() { client = credential.client; connected = true } }
@@ -31,7 +95,7 @@ final class SetupModel: ObservableObject {
     }
     func importClient() {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.json]; panel.allowsMultipleSelection = false
-        panel.message = "Choose the Desktop app OAuth JSON downloaded from Google Cloud."
+        panel.message = "Choose your team’s Google sign-in configuration."
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do { client = try OAuthClient.parse(Data(contentsOf: url)); message = "Google client imported. Connect your account next." }
         catch { message = error.localizedDescription }
@@ -58,21 +122,13 @@ final class SetupModel: ObservableObject {
                 let credential = try await GoogleAPI().exchange(code: code, client: client, redirect: redirect, verifier: verifier)
                 try Task.checkCancellation()
                 try Vault.save(credential)
-                connected = true; meeting = nil
-                message = "Connected. In Calendar, select Google Meet under Add Location or Video Call."
+                connected = true
+                message = ""
             } catch is CancellationError { message = "Sign-in cancelled." }
             catch { message = error.localizedDescription }
         }
     }
     func cancel() { loginTask?.cancel() }
-    func testMeeting() {
-        guard !busy else { return }; busy = true; meeting = nil
-        Task {
-            defer { busy = false }
-            do { meeting = try await ConferenceService.shared.create(); message = "A real test meeting was created. You can open or copy its link." }
-            catch { message = error.localizedDescription }
-        }
-    }
     private var bridgeBusy = false
     private var handledCallbacks: [URL: Date] = [:]
     func handleBridge(_ url: URL) {
@@ -101,9 +157,8 @@ final class SetupModel: ObservableObject {
                 busy = true
                 do {
                     let link = try await ConferenceService.shared.create()
-                    meeting = link
                     reply = BridgeReply(meetingURL: link.absoluteString, error: nil)
-                    message = "Meeting created. Returning the link to Calendar."
+                    message = ""
                 } catch { reply = BridgeReply(meetingURL: nil, error: error.localizedDescription) }
                 busy = false
             }
@@ -111,82 +166,37 @@ final class SetupModel: ObservableObject {
             catch { message = error.localizedDescription }
         }
     }
-    func disconnect(revoke: Bool) {
-        guard !busy else { return }; busy = true
-        Task {
-            defer { busy = false }
-            do {
-                if revoke, let credential = try Vault.load() { try await GoogleAPI().revoke(credential.refreshToken) }
-                try Vault.remove(); connected = false; meeting = nil
-                message = revoke ? "Google access revoked and local login removed." : "Local login removed. Google access can also be removed in your Google Account."
-            } catch { message = error.localizedDescription }
-        }
-    }
 }
 
 struct SetupView: View {
     @ObservedObject var model: SetupModel
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack(spacing: 14) {
-                Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(width: 72, height: 72)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Calendar Meet").font(.system(size: 26, weight: .semibold, design: .rounded))
-                    Text("Google Meet, right inside Apple Calendar.").foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
+                Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Calendar Meet").font(.system(size: 19, weight: .semibold, design: .rounded))
+                    Label(model.connected ? "Google connected" : "Connect your Google account",
+                          systemImage: model.connected ? "checkmark.circle.fill" : "person.crop.circle")
+                        .font(.caption).foregroundStyle(model.connected ? .green : .secondary)
                 }
             }
-            if Vault.isPreview {
-                Label("Unsigned developer preview", systemImage: "hammer.fill").font(.headline)
-                Text("No Apple membership is required. Google login stays in this app’s login Keychain. Choose Google Meet in Calendar to create a meeting and attach its link automatically.")
-                    .font(.callout).foregroundStyle(.secondary)
+            if model.client == nil {
+                Button("Set up Google sign-in…", action: model.importClient).disabled(model.busy)
+            } else {
+                Button(model.connected ? "Reconnect Google Account" : "Sign in with Google", action: model.connect)
+                    .buttonStyle(.borderedProminent).disabled(model.busy)
             }
-            VStack(alignment: .leading, spacing: 10) {
-                Label(model.client == nil ? "1. Add your Google client" : "1. Google client ready", systemImage: model.client == nil ? "doc.badge.plus" : "checkmark.circle.fill")
-                    .font(.headline)
-                Text("One Desktop app client can be used by your whole team. Each person signs in with their own Google account.")
-                    .font(.callout).foregroundStyle(.secondary)
-                Button("Import Google client JSON…", action: model.importClient).disabled(model.busy || model.connected)
+            if model.busy {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    if model.signingIn { Button("Cancel", action: model.cancel) }
+                }
             }
             Divider()
-            VStack(alignment: .leading, spacing: 10) {
-                Label(model.connected ? "2. Google connected" : "2. Connect Google", systemImage: model.connected ? "checkmark.circle.fill" : "person.crop.circle")
-                    .font(.headline)
-                Text("Only permission to create and manage this app’s Meet spaces. No access to your calendar, contacts, microphone or camera.")
-                    .font(.callout).foregroundStyle(.secondary)
-                HStack {
-                    Button(model.connected ? "Reconnect Google" : "Connect Google", action: model.connect)
-                        .buttonStyle(.borderedProminent).disabled(model.client == nil || model.busy )
-                    if model.busy { ProgressView().controlSize(.small) }
-                    if model.busy && !model.connected { Button("Cancel", action: model.cancel) }
-                }
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("3. Choose Google Meet in Calendar").font(.headline)
-                Text("Move the app to Applications and open it once. Enable Calendar Meet in System Settings → General → Login Items & Extensions if requested, then reopen Calendar. Add an event and choose Google Meet in Add Location or Video Call.")
-                    .font(.callout).foregroundStyle(.secondary)
-                HStack {
-                    Button("Open Calendar") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Calendar.app")) }
-                    Button("Create test meeting", action: model.testMeeting).disabled(!model.connected || model.busy)
-                }
-            }
-            if !model.message.isEmpty { Text(model.message).font(.callout).textSelection(.enabled).accessibilityIdentifier("status") }
-            if let meeting = model.meeting {
-                HStack {
-                    Link(meeting.absoluteString, destination: meeting)
-                    Button("Copy link") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(meeting.absoluteString, forType: .string) }
-                }.font(.callout)
-            }
-            HStack {
-                Link("Google setup guide", destination: URL(string: "https://github.com/mikkelrobin/apple-google-meet/blob/main/docs/SETUP.md")!)
-                Spacer()
-                if model.connected {
-                    Menu("Disconnect") {
-                        Button("Remove local login") { model.disconnect(revoke: false) }
-                        Button("Revoke Google access and disconnect") { model.disconnect(revoke: true) }
-                    }.disabled(model.busy)
-                }
-                Text("v0.2.0").foregroundStyle(.tertiary)
-            }.font(.caption)
-        }.padding(30)
+            Toggle("Launch at Login", isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
+                .toggleStyle(.switch)
+            if !model.message.isEmpty { Text(model.message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+        }.padding(22).frame(width: 310)
     }
 }

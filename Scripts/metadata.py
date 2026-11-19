@@ -3,7 +3,7 @@
 import os, pathlib, plistlib, sys
 root = pathlib.Path(sys.argv[1]); preview = sys.argv[2] == 'preview'
 base = dict(CFBundleDevelopmentRegion='en', CFBundleInfoDictionaryVersion='6.0',
-            CFBundleShortVersionString='0.2.0', CFBundleVersion='2',
+            CFBundleShortVersionString='0.3.0', CFBundleVersion='3',
             LSMinimumSystemVersion='13.0', CMPreview=preview,
             NSHumanReadableCopyright='Copyright © 2026 Mikkel Robin. MIT License.')
 for name, identifier, executable, package in [
@@ -14,6 +14,7 @@ for name, identifier, executable, package in [
                 CFBundleIconFile='AppIcon')
     if name == 'App':
         info['NSPrincipalClass'] = 'NSApplication'
+        info['LSUIElement'] = True
         info['CFBundleURLTypes'] = [dict(CFBundleURLName='Calendar Meet conference request', CFBundleURLSchemes=['calendarmeet'])]
         info['NSAppTransportSecurity'] = dict(NSAllowsLocalNetworking=True)
     else:

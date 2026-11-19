@@ -1,75 +1,52 @@
-# Verification — Calendar Meet 0.2.0, 19 November 2026
+# Verification — Calendar Meet 0.3.0, 19 November 2026
 
-## Live end-to-end result: passed on this Mac
+## Automated checks
 
-Tested on Apple Silicon macOS 27.0.1 with ad-hoc signatures only, no Apple Developer
-membership, no provisioning profiles and no App Group / Keychain sharing entitlement.
-Both app and extension remain sandboxed.
+52 checks pass locally, including actual loopback callback exchanges, OAuth,
+API error handling, conference creation, and four new descriptor assertions:
+exactly one join option, unchanged direct Meet URI, nil optional titles, and no
+duplicate generic URL in notes. Google HTTP responses in automated tests are mocked.
+The loopback tests need networking permitted by the execution environment.
 
-1. Built universal arm64 + x86_64 binaries and bundled the user-supplied Google
-   Desktop client locally. No client export or token is in the public repository.
-2. The user completed Google browser consent with their Workspace account.
-   The app displayed **Google connected** after saving tokens in its own login
-   Keychain. Restarting and rebuilding the unsigned app preserved that login.
-3. macOS pluginkit discovered and enabled version 0.2.0 of the extension.
-4. Created a disposable event without attendees in the user's Google calendar.
-   Calendar's existing Add Video Call menu showed **Google Meet** next to FaceTime.
-5. Selected Google Meet. The containing app created a real meeting through Google
-   Meet API, and returned its URL to the actual Calendar extension callback. The
-   final version required no additional confirmation in the app.
-6. Committed and reopened the event. Calendar displayed **meet.google.com** and a
-   **Join/Open** button. Google Calendar sync rewrote the meeting code and added
-   its own conference notes/dial-in details, including its automatic meeting-code
-   security notice. This is server-side behavior; the app's original URI can differ
-   from the saved URI after sync.
-7. Repeated with a separately saved event and the containing app fully quit before
-   selection. Calendar launched the app on demand, created the meeting, and the
-   reopened event again showed the saved Meet conference and Join button.
-8. Deleted both named disposable Calendar events and confirmed no Calendar Meet
-   test events remained in the visible week. No attendees were invited. Test Meet
-   spaces already created at Google are not deleted when an event is removed.
+## Investigation
 
-The earliest draft hit stale Launch Services registration and delayed requests
-while replacing the app in-place. Refreshing development registration resolved
-handler discovery. The final implementation does not wait indefinitely for app
-launch, ignores expired callbacks and duplicate URL delivery, and reuses an
-existing setup window. Do not infer that a failed/timed-out POST created no space.
+The old installed 0.2.0 event was observed in Apple Calendar: **button Open,
+Description Join**. Thus an accessibility description alone is not proof that the
+visible label is Join. See JOIN-BUTTON.md for the supported API boundaries.
 
-## Automated / package checks
+## Live and distribution checks
 
-**48 checks passed locally:** OAuth PKCE RFC vector, secure verifier, form encoding,
-Desktop client validation, scope, state/duplicate-state validation, denied consent,
-offline token exchange, refresh-token preservation, Meet POST and result validation,
-HTTP errors without leaking response bodies, provider room listing, unknown/missing
-host rejection, OAuth loopback CSRF/cancellation, one-time conference callback,
-unsafe-callback rejection, invalid result rejection, active/expired callback
-preflight, deadlines and cancellation. Google calls in these tests are mocked;
-the real Google/Calendar behavior is tested separately above.
+- Universal arm64 + x86_64 app/extension built with the installed macOS 27.2 SDK,
+  minimum deployment target macOS 13. The command-line toolchain emitted warnings
+  about an arm64-only compatibility archive while linking Intel; Intel binaries
+  linked successfully, but have not been run on physical Intel hardware.
+- Both bundles pass strict recursive ad-hoc signature verification, architecture,
+  sandbox, original icon, extension point/principal class and LSUIElement checks.
+- Installed over the existing app; pluginkit selected **0.3.0** from /Applications.
+- Live test on this Apple Silicon Mac: quit/reopened Calendar, created a disposable
+  Google-calendar event without attendees, selected Google Meet in the actual
+  video-call picker, saved it and reopened it. A real Meet link returned without
+  a per-meeting app dialog. Google sync added its own dial-in/security notes.
+- The saved event visibly showed **Open**, and AX reported **button Open,
+  Description Join**. The nil-title descriptor does NOT solve the literal label
+  on this system. No unsupported API is used to alter it.
+- Deleted the disposable event and verified it disappeared. The generated Meet
+  space is not deleted by removing a Calendar event. No attendees were invited.
+- Opened the new app's popover: only original icon/name, Google connected,
+  Reconnect Google Account and Launch at Login. Existing Keychain login survived.
+  Launch at Login was initially on; switched off and back on successfully,
+  reopened the popover and verified on. Actual login after reboot is untested.
+- Right-click Quit is implemented through NSStatusItem and NSMenu and compiles;
+  the computer-use interface did not expose the status item for that interaction,
+  so the right-click/quit path has not been exercised interactively.
+- Fresh OAuth/reconnect browser consent was not repeated; existing login and real
+  API creation worked. Google OAuth protocol coverage passes automated tests.
+- Mounted the final DMG read-only; payload signature, universal bundle checks,
+  Applications shortcut and SHA-256 checksum all passed.
+- Developer ID signing/notarization is not available locally. Installer is an
+  ad-hoc signed preview with a bundled team Desktop OAuth client (no user tokens).
+  A downloaded copy may need macOS approval, and managed-device policy can block it.
+  This is recorded in distribution notes, with no signing disclaimer in app UI.
 
-Universal bundle verification checks both architectures, minimum OS 13, correct
-extension principal class and extension point, original icons, sandbox/network
-entitlements, and absence of App Group or shared Keychain groups. Strict recursive
-ad-hoc signature verification passes before packaging. Installer checks include
-read-only mounting, payload signature validation, Applications shortcut, unsigned
-warning and SHA-256 checksum.
-
-## Remaining limits
-
-- This locally built unsigned app is not Developer ID signed or notarized. A
-  downloaded copy may need per-app approval in macOS; managed-device policies can
-  block it. The Apple gate on a colleague's Mac is not proven by local launch.
-- Only this Apple Silicon Mac and macOS version were exercised interactively.
-  Intel, macOS 13 and other macOS releases require physical-device tests.
-- Joining an actual call, invitations, recurrence, cross-device/colleague behavior,
-  live token refresh after one hour and live revocation were not exercised here.
-- The local automatic deep-link endpoint is not caller-authenticated. The user
-  explicitly chose creation without extra confirmation. Other local applications
-  can request new Meet spaces; callbacks receive only a meeting URL or error, never
-  Google tokens. Callback URLs cannot target external hosts or follow redirects.
-- File-based macOS Keychain is used through public SecItem APIs and ACL protection,
-  rather than the newer provisioned Data Protection Keychain. Code-signature
-  changes may trigger per-app Keychain authorization on future updates.
-
-The GitHub generic prerelease and the locally bundled NanoPing installer contain
-the same source. The generic CI build needs a Desktop client imported; the local
-team build already includes it. Neither artifact contains a user's Google tokens.
+Historical 0.2.0 results are preserved separately in VERIFICATION-0.2.0.md; they are
+not evidence that the 0.3.0 build has passed live tests.
