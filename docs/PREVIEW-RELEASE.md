@@ -1,7 +1,19 @@
-Native macOS setup app and EventKit virtual conference extension; Apple Silicon and Intel, macOS 13+.
+Calendar Meet 0.2.0 — membership-free architecture experiment, macOS 13+, Intel and Apple Silicon.
 
-**UNSIGNED DEVELOPER PREVIEW — not ready for team use.** Ad-hoc integrity signatures only; no Developer ID signature or notarization. Google login is disabled in this build because secure sharing of OAuth credentials with the sandboxed Calendar extension requires Apple signing and App Group provisioning. macOS may block this preview.
+**UNSIGNED PREVIEW:** ad-hoc integrity signature only. No Developer ID or Apple
+notarization. macOS or managed-device policies may block installation.
 
-Google OAuth with PKCE, refresh/revocation, Meet API conference creation, shared Keychain storage, original icon, tests and signed release automation are included in source. Before a usable team release, configure a Google Desktop OAuth client and Apple Developer ID profiles/certificate, then validate Google login and actual Calendar conference creation on a signed build.
+Google login is now enabled without shared App Groups or Keychain entitlements.
+Credentials stay in the containing app's login Keychain. The Calendar extension
+opens the app and waits for a finished link over a one-use local callback.
+Choosing Google Meet in Calendar creates the meeting automatically, with no extra
+confirmation. The user opted into this behavior. Live callbacks are checked and
+requests deduplicated. Local apps can request new meeting spaces through the local
+integration; Google tokens never leave the main app's Keychain.
 
-Download the DMG and checksum below. Drag the app to Applications. See [setup and prerequisites](https://github.com/mikkelrobin/apple-google-meet/blob/main/docs/SETUP.md).
+This generic GitHub build requires importing your team's Desktop OAuth client.
+No client export, token or certificate is committed to this repository. A locally
+built client-bundled installer is a separate artifact.
+
+See docs/VERIFICATION.md for exact live Calendar results and remaining limits;
+API compilation and extension discovery alone do not prove integration works.

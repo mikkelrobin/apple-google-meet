@@ -6,8 +6,9 @@ BUILD="${BUILD_DIR:-$PWD/build}"
 APP="$BUILD/Calendar Meet.app"
 OUT="${OUTPUT_DIR:-$PWD/dist}"
 mkdir -p "$OUT"
+[[ "$MODE" == preview || "$MODE" == signed ]] || { echo "MODE must be preview or signed"; exit 1; }
 if [[ "$MODE" == preview ]]; then SUFFIX=UNSIGNED-PREVIEW; else SUFFIX=SIGNED; fi
-NAME="CalendarMeet-0.1.0-$SUFFIX"
+NAME="CalendarMeet-0.2.0-$SUFFIX"
 # Stage outside cloud-synced Documents: file providers may add Finder metadata
 # to .app/.appex bundles after they were signed.
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/CalendarMeet-dmg.XXXXXX")"
@@ -18,7 +19,7 @@ codesign --verify --deep --strict "$STAGE/Calendar Meet.app"
 ln -sfn /Applications "$STAGE/Applications"
 cp docs/INSTALL.txt "$STAGE/READ ME FIRST.txt"
 if [[ "$MODE" == preview ]]; then
-  printf '\nUNSIGNED DEVELOPER PREVIEW: no Developer ID, no notarization. Google login is disabled until a signed, provisioned build is installed. This is not a ready-to-use team release.\n' >> "$STAGE/READ ME FIRST.txt"
+  printf '\nUNSIGNED DEVELOPER PREVIEW: no Developer ID, no notarization. No Developer ID signature or notarization. Google login is enabled; this experimental build uses the containing app login Keychain and a one-time local callback. Choose Google Meet in Calendar to create and attach the meeting automatically.\n' >> "$STAGE/READ ME FIRST.txt"
 fi
 hdiutil create -ov -volname "Calendar Meet" -srcfolder "$STAGE" -format UDZO "$OUT/$NAME.dmg"
 if [[ "$MODE" == signed ]]; then

@@ -1,24 +1,28 @@
-Calendar Meet — macOS 13 or later, Apple Silicon and Intel
+Calendar Meet 0.2.0 — macOS 13+, Apple Silicon and Intel
 
 1. Open the DMG and drag Calendar Meet to Applications.
-2. Open Calendar Meet from Applications.
-3. Import your team's Google Desktop OAuth client JSON, unless already bundled.
-4. Connect Google and grant the Meet permission.
-5. Enable the Calendar Meet extension in System Settings if macOS asks.
-   Depending on macOS version, extensions appear under Privacy & Security >
-   Extensions, or General > Login Items & Extensions.
-6. Quit and reopen Apple Calendar. Create or edit an event. In Add Location or
-   Video Call, choose Google Meet. A fresh Google Meet link is attached.
+2. Open Calendar Meet. This unsigned preview has no Developer ID signature or
+   Apple notarization; macOS may require you to approve this specific app in
+   System Settings > Privacy & Security. Organization-managed Macs may block it.
+3. If a Google client is not bundled, import your team's Desktop OAuth JSON.
+4. Click Connect Google and finish sign-in with your Workspace account.
+5. Enable the Calendar Meet extension in System Settings if requested, then
+   fully quit and reopen Apple Calendar.
+6. Create or edit an event. Choose Google Meet in Add Location or Video Call.
+7. The new meeting is created automatically and its link returns to Calendar.
 
-The app need not stay open. The Calendar extension creates meetings on demand.
-No Calendar permission is requested. Meetings are created using Google Meet's
-API; the extension doesn't create duplicate Google Calendar events.
+No Apple membership, App Group or shared Keychain entitlement is used. OAuth
+credentials stay in the containing app's macOS login Keychain. The Calendar
+extension receives only a Meet URL or error over a short-lived local callback.
 
-UNSIGNED-PREVIEW builds are development artifacts. Login is disabled because
-secure sharing with the sandboxed extension needs signed App Group provisioning.
-These builds are neither Developer ID signed nor notarized. macOS may block them.
-Use a signed, notarized release for colleagues. No global security changes are
-required or recommended.
+The app can be closed between uses; the extension opens it in the background.
+Complete Google setup before using the Calendar menu. The local integration
+allows other apps on your Mac to request new meeting spaces; OAuth credentials
+are never shared with those callers.
 
-Setup and troubleshooting:
+No calendar data, Google tokens or credentials are sent to a backend. No Calendar,
+microphone or camera permission is needed by this app. Creating a Meet space does
+not create an extra Google Calendar event.
+
+Setup and exact verification limits:
 https://github.com/mikkelrobin/apple-google-meet/blob/main/docs/SETUP.md

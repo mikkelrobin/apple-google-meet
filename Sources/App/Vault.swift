@@ -2,19 +2,15 @@ import Foundation
 import Security
 
 enum Vault {
-    static let group = "group.com.mikkelrobin.CalendarMeet"
+    // macOS login Keychain: only the containing app accesses credentials.
+    // The extension never links this file or reads this Keychain item.
     static var isPreview: Bool { Bundle.main.object(forInfoDictionaryKey: "CMPreview") as? Bool ?? true }
     static var query: [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: "com.mikkelrobin.CalendarMeet.oauth",
-         kSecAttrAccount as String: "google", kSecAttrAccessGroup as String: group,
-         kSecUseDataProtectionKeychain as String: true]
-    }
-    static func requireSigned() throws {
-        guard !isPreview else { throw MeetError("This is an unsigned developer preview. A signed build with App Group provisioning is required for secure Google login shared with Calendar. See Setup in the source package.") }
+         kSecAttrService as String: "com.mikkelrobin.CalendarMeet.local-oauth",
+         kSecAttrAccount as String: "google"]
     }
     static func load() throws -> Credential? {
-        try requireSigned()
         var q = query; q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
         let status = SecItemCopyMatching(q as CFDictionary, &result)
@@ -23,23 +19,20 @@ enum Vault {
         return try JSONDecoder().decode(Credential.self, from: data)
     }
     static func save(_ credential: Credential) throws {
-        try requireSigned()
         let attributes = [kSecValueData as String: try JSONEncoder().encode(credential)]
         let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         if status == errSecItemNotFound {
             var q = query; attributes.forEach { q[$0.key] = $0.value }
-            q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             let added = SecItemAdd(q as CFDictionary, nil)
             guard added == errSecSuccess else { throw failure(added) }
         } else if status != errSecSuccess { throw failure(status) }
     }
     static func remove() throws {
-        try requireSigned()
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { throw failure(status) }
     }
     static func failure(_ status: OSStatus) -> MeetError {
-        MeetError("Shared Keychain unavailable (\(status)). Check both provisioning profiles, App Group entitlements and signing team; unlock your Mac, then reconnect.")
+        MeetError("Login Keychain unavailable (\(status)). Unlock your login Keychain, then try again.")
     }
 }
 

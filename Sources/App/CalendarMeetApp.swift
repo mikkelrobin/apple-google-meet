@@ -7,7 +7,7 @@ struct CalendarMeetApp: App {
     @StateObject private var model = SetupModel()
     var body: some Scene {
         WindowGroup {
-            SetupView(model: model).frame(width: 520).fixedSize(horizontal: false, vertical: true)
+            SetupView(model: model).onOpenURL { model.handleBridge($0) }.handlesExternalEvents(preferring: ["*"], allowing: ["*"]).frame(width: 520).fixedSize(horizontal: false, vertical: true)
         }.windowResizability(.contentSize)
         .commands { CommandGroup(replacing: .newItem) {} }
     }
@@ -23,7 +23,7 @@ final class SetupModel: ObservableObject {
     private var loginTask: Task<Void, Never>?
     init() {
         do { if let credential = try Vault.load() { client = credential.client; connected = true } }
-        catch { if !Vault.isPreview { message = error.localizedDescription } }
+        catch { message = error.localizedDescription }
         if client == nil, let url = Bundle.main.url(forResource: "GoogleOAuthClient", withExtension: "json") {
             do { client = try OAuthClient.parse(Data(contentsOf: url)) }
             catch { message = error.localizedDescription }
@@ -43,7 +43,6 @@ final class SetupModel: ObservableObject {
             var server: Loopback?
             defer { server?.cancel(); busy = false; loginTask = nil }
             do {
-                try Vault.requireSigned()
                 let verifier = try OAuth.random(); let state = try OAuth.random()
                 let callback = try Loopback(); server = callback
                 let redirect = try await callback.start()
@@ -74,6 +73,44 @@ final class SetupModel: ObservableObject {
             catch { message = error.localizedDescription }
         }
     }
+    private var bridgeBusy = false
+    private var handledCallbacks: [URL: Date] = [:]
+    func handleBridge(_ url: URL) {
+        let callback: URL
+        do { callback = try BridgeRequest.callback(from: url) }
+        catch { message = error.localizedDescription; return }
+        handledCallbacks = handledCallbacks.filter { Date().timeIntervalSince($0.value) < 120 }
+        guard handledCallbacks[callback] == nil else { return }
+        handledCallbacks[callback] = Date()
+        guard !bridgeBusy else {
+            Task { try? await BridgeRequest.reply(BridgeReply(meetingURL: nil, error: "Another request is in progress. Try again."), to: callback) }
+            return
+        }
+        bridgeBusy = true
+        Task { @MainActor in
+            defer { bridgeBusy = false }
+            // Ignore delayed Launch Services requests after Calendar stopped waiting.
+            guard await BridgeRequest.isWaiting(callback) else { return }
+            let reply: BridgeReply
+            if !connected {
+                message = "Calendar reached the app successfully. Connect Google, then choose Google Meet in Calendar again."
+                reply = BridgeReply(meetingURL: nil, error: "Open Calendar Meet and connect Google, then select Google Meet again.")
+            } else if busy {
+                reply = BridgeReply(meetingURL: nil, error: "Finish the current action in Calendar Meet, then try again.")
+            } else {
+                busy = true
+                do {
+                    let link = try await ConferenceService.shared.create()
+                    meeting = link
+                    reply = BridgeReply(meetingURL: link.absoluteString, error: nil)
+                    message = "Meeting created. Returning the link to Calendar."
+                } catch { reply = BridgeReply(meetingURL: nil, error: error.localizedDescription) }
+                busy = false
+            }
+            do { try await BridgeRequest.reply(reply, to: callback) }
+            catch { message = error.localizedDescription }
+        }
+    }
     func disconnect(revoke: Bool) {
         guard !busy else { return }; busy = true
         Task {
@@ -100,7 +137,7 @@ struct SetupView: View {
             }
             if Vault.isPreview {
                 Label("Unsigned developer preview", systemImage: "hammer.fill").font(.headline)
-                Text("This build lets you inspect the app and Calendar extension. Google login requires a signed build with shared Keychain provisioning. Setup instructions are included with the source.")
+                Text("No Apple membership is required. Google login stays in this app’s login Keychain. Choose Google Meet in Calendar to create a meeting and attach its link automatically.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 10) {
@@ -118,7 +155,7 @@ struct SetupView: View {
                     .font(.callout).foregroundStyle(.secondary)
                 HStack {
                     Button(model.connected ? "Reconnect Google" : "Connect Google", action: model.connect)
-                        .buttonStyle(.borderedProminent).disabled(model.client == nil || model.busy || Vault.isPreview)
+                        .buttonStyle(.borderedProminent).disabled(model.client == nil || model.busy )
                     if model.busy { ProgressView().controlSize(.small) }
                     if model.busy && !model.connected { Button("Cancel", action: model.cancel) }
                 }
@@ -148,7 +185,7 @@ struct SetupView: View {
                         Button("Revoke Google access and disconnect") { model.disconnect(revoke: true) }
                     }.disabled(model.busy)
                 }
-                Text("v0.1.0").foregroundStyle(.tertiary)
+                Text("v0.2.0").foregroundStyle(.tertiary)
             }.font(.caption)
         }.padding(30)
     }

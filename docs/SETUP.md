@@ -1,129 +1,90 @@
-# Setup
+# Calendar Meet 0.2.0 setup
 
-## Google Cloud — once for the team
+## Google — once per team
 
-1. Create a project at [Google Cloud Console](https://console.cloud.google.com/).
-2. Enable **Google Meet REST API** (`meet.googleapis.com`).
-3. In **Google Auth Platform**, configure branding, support contact and audience.
-   Choose **Internal** if all users belong to your Workspace organization and your
-   project supports that audience; otherwise choose **External**.
-4. Add just this scope to Data Access:
-   `https://www.googleapis.com/auth/meetings.space.created`.
-5. Create a client under **Clients → Create client → Desktop app**. Download its JSON.
-   A Web client, API key or service account JSON will not work.
-6. For External / Testing, add each colleague as a test user. Testing refresh
-   tokens usually expire after seven days for this scope. For lasting external
-   distribution, publish the consent app and complete Google's verification as
-   required for this sensitive scope. Internal apps can still require your
-   Workspace administrator's approval. Account eligibility and organization
-   policies may restrict Meet API access.
-7. In a **signed build**, import that JSON and choose Connect Google. Each person
-   authorizes their own account. Never distribute access or refresh tokens.
+1. In a Google Cloud project owned by your Workspace organization, enable Google
+   Meet API (`meet.googleapis.com`). A project named Calendar Meet was created
+   under the nanoping.com organization during this setup.
+2. Configure Google Auth Platform branding and **Internal** audience for colleagues
+   in that same Workspace organization. This is a project-level configuration.
+3. Use only `https://www.googleapis.com/auth/meetings.space.created`.
+4. Create a **Desktop app** OAuth client, name it Calendar Meet macOS, and download
+   the JSON. A Web client or service account file will not work.
+5. Bundle that Desktop client during a local build with `GOOGLE_CLIENT_JSON`, or
+   import it in the app. Each person connects their own account. Never bundle or
+   distribute an access token, refresh token or service-account private key.
+6. Workspace administrators may need to approve the client for Meet access.
 
-The Desktop client ID and its desktop client secret identify a public installed
-client; they are not a server secret. PKCE is mandatory in this app. You can ship
-one client in the signed app using `GOOGLE_CLIENT_JSON=/absolute/path/client.json`
-when building; then colleagues only see Connect Google. Keep any other secrets,
-service account credentials and tokens out of the repository and build assets.
+External projects can be used for testing with explicit test users, but testing
+refresh tokens commonly expire after seven days for this scope. External production
+distribution may require Google verification. Internal organizational use avoids
+that external verification route, subject to Workspace policy.
 
-## Apple signing — required for the secure shared login
+The Desktop client secret is part of a public installed client, not a server
+secret. PKCE protects each login. Client exports stay out of this public source
+repository. The user-supplied client is kept in local ignored Configuration/.
 
-The public EventKit APIs support macOS 12+. This app targets macOS 13+ for its
-SwiftUI setup UI. Both targets are sandboxed. The app and extension share tokens
-in the **Data Protection Keychain**, using this registered App Group:
+## Install and use without Apple membership
 
-`group.com.mikkelrobin.CalendarMeet`
+Build or download an explicitly labelled unsigned preview. Drag the app into
+Applications, open it, and use Connect Google. If macOS blocks this specific app,
+review it and use the per-app approval flow in Privacy & Security if appropriate.
+No global Gatekeeper changes or removal of quarantine are needed by the app.
+Managed-device policies may prohibit this entirely.
 
-Register the following explicit App IDs in your Apple Developer team:
+Enable its extension if requested in System Settings. Fully quit and reopen
+Calendar, then choose Google Meet in Add Location or Video Call. The containing
+app opens in the background, creates the meeting, and returns its URL automatically.
+There is no confirmation or copy/paste step. The bridge has a 55-second timeout;
+Calendar may impose its own earlier deadline.
 
-- `com.mikkelrobin.CalendarMeet`
-- `com.mikkelrobin.CalendarMeet.Conference`
+The app can be closed between uses. No shared Keychain or App Group is involved.
+The app alone stores credentials in the classic macOS login Keychain (ACL based),
+and only returns the finished URL or error to the waiting extension. Ad-hoc signed
+updates may cause Keychain access prompts because the code identity changes. Never
+select an option that grants all applications access to the Keychain item.
 
-Enable App Groups on both and assign the same group above. Create **Developer
-ID provisioning profiles** for both IDs that authorize the group. Install a
-**Developer ID Application** certificate with its private key. An ordinary Apple
-Development certificate is not suitable for distributing to colleagues.
+A deep-link request does not authenticate its originating application. The user
+explicitly chose automatic meeting creation without a per-request dialog. Other
+local software can request creation of a new Meet space using this integration;
+it cannot retrieve OAuth credentials or request arbitrary Google operations.
+Callbacks must be live and bound to IPv4 loopback, requests are deduplicated, and
+HTTP redirects are refused. This is an intentional tradeoff for automatic use.
 
-Build using the macOS SDK / Command Line Tools (Swift 5.7+; current Xcode or CLT
-recommended). Do not change the shared group in only one target.
+## Optional trusted distribution
+
+Apple Developer ID membership is only needed if you want Developer ID signing
+and notarization. No App Group, restricted Keychain entitlement or provisioning
+profiles are needed for the 0.2 architecture.
 
 ```sh
 MODE=signed TEAM_ID=YOURTEAMID \
 SIGN_IDENTITY='Developer ID Application: Your Name (YOURTEAMID)' \
-APP_PROFILE=/absolute/path/App.provisionprofile \
-EXT_PROFILE=/absolute/path/Extension.provisionprofile \
-GOOGLE_CLIENT_JSON=/absolute/path/client.json \
-bash Scripts/build.sh
-```
-
-Create a notarytool Keychain credential profile locally using Apple's documented
-`notarytool store-credentials` flow, then package:
-
-```sh
+GOOGLE_CLIENT_JSON=/absolute/path/DesktopClient.json bash Scripts/build.sh
 MODE=signed SIGN_IDENTITY='Developer ID Application: Your Name (YOURTEAMID)' \
 NOTARY_PROFILE=CalendarMeetNotary bash Scripts/package.sh
 ```
 
-The packaging script requires Accepted notarization, staples the DMG ticket and
-runs Gatekeeper assessment. Do not label a build notarized before these pass.
-Provisioning profiles are embedded locally into both bundles, never committed.
+The optional signed workflow uses repository secrets APPLE_CERTIFICATE_P12_BASE64,
+APPLE_CERTIFICATE_PASSWORD, APPLE_TEAM_ID, APPLE_SIGN_IDENTITY, APPLE_ID and
+APPLE_APP_PASSWORD; GOOGLE_CLIENT_JSON_BASE64 is optional. Use a notarization
+app-specific password, not a normal Apple password. Signed packaging requires
+Accepted notarization and staples the DMG. The first signed release is a draft
+until real-account tests have passed.
 
-### GitHub Actions signed release
+## Troubleshooting and release checklist
 
-Set repository secrets: `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`,
-`APPLE_TEAM_ID`, `APPLE_SIGN_IDENTITY`, `APP_PROFILE_BASE64`, `EXT_PROFILE_BASE64`,
-`APPLE_ID`, `APPLE_APP_PASSWORD`. An app-specific password is for Apple's
-notarization service; do not use your regular Apple password.
-
-Optional `GOOGLE_CLIENT_JSON_BASE64` bundles the Desktop OAuth client. Use the
-**Signed release** workflow manually after secrets are set. It creates a temporary
-Keychain, builds and tests universal binaries, notarizes the DMG, then publishes a
-release. No certificates or tokens are written to logs or repository files.
-
-## Unsigned preview
-
-```sh
-bash Scripts/test.sh
-bash Scripts/build.sh
-bash Scripts/package.sh
-```
-
-Default mode is `preview`: binaries have an ad-hoc integrity signature (needed on
-Apple Silicon) but **no trusted Developer ID signature and no notarization**.
-Protected App Group entitlements are deliberately absent, and Google login is
-disabled. This avoids pretending a distributable secure login can work without
-Apple credentials. The preview can demonstrate setup and the extension's room
-listing, subject to macOS allowing local development extensions. Do not share
-it as a ready-to-use team release. No insecure plaintext-token fallback exists.
-
-## Troubleshooting and limits
-
-- No Google Meet in Calendar: install in Applications, launch once, enable the
-  extension in System Settings, fully quit/reopen Calendar. Use
-  `pluginkit -m -v -i com.mikkelrobin.CalendarMeet.Conference` to inspect discovery.
-  Paths/extension UI differ between macOS versions. Registration alone is not
-  proof that Calendar executed a conference callback.
-- Keychain error `-34018`: shared entitlement/provisioning is missing. Check both
-  profiles and the signing team. Preview login is intentionally disabled.
-- HTTP 403: enable Meet REST API, check consent/test users and Workspace policy.
-- Revoked/expired login: use Reconnect Google. No network POSTs are automatically
-  retried, to avoid accidentally creating duplicate spaces.
-- Removing a link or cancelling a Calendar edit does not delete the already
-  created Meet space. EventKit provides a room identifier, **not event dates,
-  attendees or a cancellation callback**. Each selection creates a new space;
-  recurrence uses the link stored by Calendar. This app does not manage the
-  lifecycle of an existing Google Calendar conference.
-- The selected calendar must allow event editing. Google Calendar server sync,
-  recurrence, invitations and non-Apple clients need a real-account manual test.
-- Disconnect → Remove local login only clears this app's Keychain entry. Use
-  Revoke Google access and disconnect to revoke at Google as well; network
-  failures are reported and do not silently claim success.
-
-## Verification before team release
-
-On a signed, provisioned build: import the Desktop client, connect, create a test
-meeting, close the app, select Google Meet inside Calendar, save the event, reopen
-it and join the returned link. Confirm invitations on a colleague's device.
-Repeat after access-token expiry, revoked consent, offline mode and reconnect.
-Check that cancelling browser login returns promptly. Test both supported CPU
-architectures on actual Macs. Until this checklist passes, a build is a preview.
+- Missing menu option: open the installed app once, enable its extension, restart
+  Calendar. Inspect `pluginkit -m -v -i com.mikkelrobin.CalendarMeet.Conference`.
+  Discovery is not proof of a live Calendar callback. See VERIFICATION.md.
+- OAuth permission: Google client must be Desktop, account must belong to Internal
+  organization, Meet API must be enabled; check admin app access policy on 403.
+- Keychain: unlock login Keychain and authorize this app only if prompted.
+- Timeout: select Google Meet again. Delayed callbacks are ignored. A space may
+  already have been created if Google's response was lost; POST is not retried.
+- Cancel or remove a Calendar event: an already created Meet space is not deleted.
+  EventKit supplies a room type, not event dates/attendees or a cancellation hook.
+- Disconnect can revoke Google access or only remove this app's local credentials.
+- Before sharing widely, test actual Calendar insertion, save/reopen, invitations,
+  recurrence and joining on a colleague's device. Test Intel and oldest supported
+  macOS on real hardware. No attendees are added by the app itself.

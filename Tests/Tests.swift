@@ -25,6 +25,7 @@ struct Tests {
     static func rejects(_ label: String, _ action: () throws -> Void) {
         do { try action(); fatalError("Expected rejection: \(label)") } catch { checks += 1 }
     }
+    static func tryBridgeCallback(_ request: URL) -> URL? { try? BridgeRequest.callback(from: request) }
     static func main() async throws {
         expect(OAuth.challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk") == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", "RFC 7636 PKCE vector")
         let random = try OAuth.random(); expect(random.count == 43, "Secure random verifier length")
@@ -79,7 +80,39 @@ struct Tests {
         let rooms = try await provider.fetchAvailableRoomTypes()
         expect(rooms.count == 1 && rooms[0].title == "Google Meet", "Single Calendar menu option")
         do { _ = try await provider.fetchVirtualConference(identifier: "unknown"); fatalError("Unknown room accepted") } catch { checks += 1 }
-        do { _ = try await provider.fetchVirtualConference(identifier: "google-meet-new"); fatalError("Preview must not fabricate links") } catch { checks += 1 }
+        do { _ = try await provider.fetchVirtualConference(identifier: "google-meet-new"); fatalError("Provider must reject a missing containing app") } catch { checks += 1 }
+        let bridge = try BridgeListener()
+        let callback = try await bridge.start(timeout: 3)
+        let waiting = await BridgeRequest.isWaiting(callback)
+        expect(waiting, "Bridge preflight accepts active callback")
+        let request = BridgeRequest.url(callback: callback)
+        expect(tryBridgeCallback(request) == callback, "Bridge request roundtrip")
+        let badCallbacks = ["http://example.com:1234/return/" + random,
+                            "http://127.0.0.1:80/return/" + random,
+                            "http://127.0.0.1:1234/return/short",
+                            "http://127.0.0.1:1234/return/" + random + "?extra=x",
+                            "http://user@127.0.0.1:1234/return/" + random]
+        for text in badCallbacks {
+            rejects("Bridge rejects unsafe callback") { _ = try BridgeRequest.callback(from: BridgeRequest.url(callback: URL(string: text)!)) }
+        }
+        let bridgeWait = Task { try await bridge.response() }
+        var badRequest = URLRequest(url: callback.deletingLastPathComponent().appendingPathComponent("wrong"))
+        badRequest.httpMethod = "POST"; badRequest.httpBody = Data("{}".utf8)
+        let (_, badResponse) = try await URLSession.shared.data(for: badRequest)
+        expect((badResponse as! HTTPURLResponse).statusCode == 404, "Bridge ignores wrong capability")
+        try await BridgeRequest.reply(BridgeReply(meetingURL: nil, error: "Not connected"), to: callback)
+        let bridgeReply = try await bridgeWait.value
+        expect(bridgeReply.error == "Not connected", "Bridge carries errors without credentials")
+        let expired = await BridgeRequest.isWaiting(callback)
+        expect(!expired, "Bridge ignores expired callbacks")
+        rejects("Bridge validates returned Meet link") { _ = try BridgeReply(meetingURL: "https://evil.example/", error: nil).result() }
+        let returnedURL = try BridgeReply(meetingURL: "https://meet.google.com/abc-defg-hij", error: nil).result()
+        expect(returnedURL.host == "meet.google.com", "Bridge accepts a valid Meet link")
+        let timed = try BridgeListener(); _ = try await timed.start(timeout: 0.05)
+        do { _ = try await timed.response(); fatalError("Bridge timeout ignored") } catch { checks += 1 }
+        let cancelledBridge = try BridgeListener(); _ = try await cancelledBridge.start()
+        let cancelledReply = Task { try await cancelledBridge.response() }; cancelledReply.cancel()
+        do { _ = try await cancelledReply.value; fatalError("Bridge cancellation ignored") } catch { checks += 1 }
         // Real loopback exchange, including ignored CSRF attempt and fragmented HTTP handled by the server.
         let loopback = try Loopback()
         let redirect = try await loopback.start()

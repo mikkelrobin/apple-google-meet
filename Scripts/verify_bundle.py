@@ -13,17 +13,8 @@ for bundle in (app, ext):
     entitlements = plistlib.loads(subprocess.check_output(['codesign', '-d', '--entitlements', ':-', str(bundle)], stderr=subprocess.DEVNULL))
     assert entitlements['com.apple.security.app-sandbox']
     assert entitlements['com.apple.security.network.client']
-    if not preview:
-        group='group.com.mikkelrobin.CalendarMeet'
-        assert group in entitlements['com.apple.security.application-groups']
-        profile_xml = subprocess.check_output(['security', 'cms', '-D', '-i', str(bundle/'Contents/embedded.provisionprofile')])
-        profile = plistlib.loads(profile_xml)
-        from datetime import datetime
-        assert profile['ExpirationDate'] > datetime.utcnow(), 'Expired provisioning profile'
-        allowed = profile['Entitlements']
-        assert allowed.get('com.apple.application-identifier') == entitlements['com.apple.developer.team-identifier'] + '.' + info['CFBundleIdentifier']
-        assert group in allowed.get('com.apple.security.application-groups', []), 'Profile missing shared App Group'
-        assert profile['TeamIdentifier'][0] == entitlements['com.apple.developer.team-identifier']
+    assert 'com.apple.security.application-groups' not in entitlements
+    assert 'keychain-access-groups' not in entitlements
 info=plistlib.loads((ext/'Contents/Info.plist').read_bytes())
 assert info['NSExtension']['NSExtensionPointIdentifier'] == 'com.apple.calendar.virtualconference'
 assert info['NSExtension']['NSExtensionPrincipalClass'] == 'MeetConference.VirtualConferenceProvider'

@@ -19,16 +19,12 @@ jobs:
           CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
-          APP_PROFILE_DATA: ${{ secrets.APP_PROFILE_BASE64 }}
-          EXT_PROFILE_DATA: ${{ secrets.EXT_PROFILE_BASE64 }}
           GOOGLE_CLIENT_DATA: ${{ secrets.GOOGLE_CLIENT_JSON_BASE64 }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
           set -euo pipefail
           : "${CERT:?Missing Apple certificate}" "${TEAM_ID:?Missing team ID}"
-          : "${SIGN_IDENTITY:?Missing identity}" "${APP_PROFILE_DATA:?Missing app profile}"
-          : "${EXT_PROFILE_DATA:?Missing extension profile}" "${APPLE_ID:?Missing Apple ID}"
           : "${APPLE_APP_PASSWORD:?Missing notarization password}"
           TEMP_DIR="$(mktemp -d)"
           KEYCHAIN="$TEMP_DIR/release.keychain-db"
@@ -36,15 +32,13 @@ jobs:
           echo "::add-mask::$KEYCHAIN_PASSWORD"
           trap 'security delete-keychain "$KEYCHAIN" || true; rm -rf "$TEMP_DIR"' EXIT
           printf '%s' "$CERT" | base64 --decode > "$TEMP_DIR/certificate.p12"
-          printf '%s' "$APP_PROFILE_DATA" | base64 --decode > "$TEMP_DIR/app.provisionprofile"
-          printf '%s' "$EXT_PROFILE_DATA" | base64 --decode > "$TEMP_DIR/extension.provisionprofile"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security import "$TEMP_DIR/certificate.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
-          export MODE=signed APP_PROFILE="$TEMP_DIR/app.provisionprofile" EXT_PROFILE="$TEMP_DIR/extension.provisionprofile"
+          export MODE=signed
           export NOTARY_PROFILE=CalendarMeetCI NOTARY_KEYCHAIN="$KEYCHAIN"
           if [[ -n "$GOOGLE_CLIENT_DATA" ]]; then
             printf '%s' "$GOOGLE_CLIENT_DATA" | base64 --decode > "$TEMP_DIR/client.json"
@@ -62,6 +56,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v0.1.0-signed.${GITHUB_RUN_NUMBER}" dist/* --draft \
-            --target "$GITHUB_SHA" --title 'Calendar Meet 0.1.0 — Signed and notarized' \
+          gh release create "v0.2.0-signed.${GITHUB_RUN_NUMBER}" dist/* --draft \
+            --target "$GITHUB_SHA" --title 'Calendar Meet 0.2.0 — Signed and notarized' \
             --notes 'Developer ID signed and notarized. Complete the real-account Calendar checklist in docs/SETUP.md before publishing to colleagues.'

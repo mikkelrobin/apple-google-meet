@@ -6,7 +6,6 @@ MODE="${MODE:-preview}"
 [[ "$MODE" == preview || "$MODE" == signed ]] || { echo 'MODE must be preview or signed'; exit 1; }
 if [[ "$MODE" == signed ]]; then
   : "${TEAM_ID:?Set TEAM_ID}" "${SIGN_IDENTITY:?Set Developer ID Application identity}"
-  : "${APP_PROFILE:?Set app provisioning profile path}" "${EXT_PROFILE:?Set extension provisioning profile path}"
 fi
 BUILD="${BUILD_DIR:-$PWD/build}"
 APP="$BUILD/Calendar Meet.app"
@@ -50,8 +49,7 @@ else
   rm -f "$APP/Contents/Resources/GoogleOAuthClient.json"
 fi
 if [[ "$MODE" == signed ]]; then
-  cp "$APP_PROFILE" "$APP/Contents/embedded.provisionprofile"
-  cp "$EXT_PROFILE" "$EXT/Contents/embedded.provisionprofile"
+  rm -f "$APP/Contents/embedded.provisionprofile" "$EXT/Contents/embedded.provisionprofile"
   SIGN="$SIGN_IDENTITY"; OPTIONS=(--options runtime --timestamp)
 else
   rm -f "$APP/Contents/embedded.provisionprofile" "$EXT/Contents/embedded.provisionprofile"

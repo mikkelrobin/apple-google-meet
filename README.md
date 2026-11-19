@@ -1,64 +1,61 @@
 # Calendar Meet
 
-A small native macOS Swift app that adds **Google Meet** to Apple Calendar's
-existing **Add Location or Video Call** picker using the supported EventKit
-virtual conference extension. No calendar scraping, UI automation or fake links.
+Native macOS Swift app and EventKit virtual conference extension adding **Google
+Meet** to Apple Calendar's **Add Location or Video Call** picker.
 
-**Status: development preview.** Universal Apple Silicon + Intel binaries target
-macOS 13+. Google OAuth and Meet creation are implemented. No Google Cloud client
-or Apple signing identities were available during initial development. The
-unsigned installer has login disabled; a signed, App Group provisioned build and
-real-account validation are required before this is ready for colleagues.
+## 0.2.0 — membership-free experiment
+
+The containing app handles Google OAuth and conference creation, and stores tokens
+in its own **macOS login Keychain**. The sandboxed Calendar extension has no Google
+tokens, App Group, shared Keychain or provisioning profile. It opens its containing
+app explicitly and receives a meeting URL or error through a short-lived callback
+bound to `127.0.0.1`, protected by a random 256-bit one-use capability.
+
+Selecting **Google Meet** in Calendar creates the meeting automatically and returns
+the link. The app is started on demand if closed. There is no per-meeting dialog.
+The user explicitly requested this automatic behavior. Requests are deduplicated,
+checked for a live callback, and bounded by a timeout. Local applications can
+request new Meet spaces through this integration; they never receive OAuth tokens.
+
+Default builds are ad-hoc signed **UNSIGNED-PREVIEW**, without Developer ID or
+notarization. A paid Apple membership is not used by this architecture. macOS or
+corporate policies may block unsigned apps. Exact live test results and limits
+are recorded in [VERIFICATION.md](docs/VERIFICATION.md).
 
 ![Original Calendar Meet icon](docs/AppIcon.png)
-
-## Use
-
-Install a signed build in Applications, import your team's Google Desktop OAuth
-JSON (unless bundled), connect Google once, then choose **Google Meet** on an
-Apple Calendar event. The app does not need to remain open.
-
-[Setup, signing, Google prerequisites and troubleshooting](docs/SETUP.md)
 
 ## Build
 
 ```sh
 bash Scripts/test.sh
-bash Scripts/build.sh
+GOOGLE_CLIENT_JSON=/absolute/path/DesktopClient.json bash Scripts/build.sh
 bash Scripts/package.sh
 ```
 
-Outputs are in `dist/`, explicitly labelled `UNSIGNED-PREVIEW` by default. No
-third-party dependencies or project generators. The scripts compile the app and
-its embedded `.appex` with the active macOS SDK. Open this folder in Xcode or your
-editor; a generated `.xcodeproj` is not needed. The preview workflow builds,
-tests, uploads artifacts and publishes a prerelease on pushes to `main`.
-The separate manual signed-release workflow requires the documented secrets.
+Without `GOOGLE_CLIENT_JSON`, the app prompts to import the team's Desktop OAuth
+file. Do not commit client exports, tokens, certificates or local configuration.
+The local Google client supplied during setup is deliberately not in this repo.
+GitHub's generic prerelease requires import unless the optional CI client secret
+is configured. Local client-bundled installers can be shared directly.
 
-## Security and privacy
+Universal arm64 + x86_64, macOS 13+. No third-party libraries or project generator.
+Both targets remain sandboxed. No Calendar, contacts, camera or microphone access.
+Only the Google `meetings.space.created` scope is requested. PKCE S256, random
+OAuth state, loopback-only callbacks, deadlines, cancellation, refresh and revocation
+are implemented. Tokens and API response bodies are not logged.
 
-System-browser OAuth uses random state, PKCE S256, an ephemeral callback bound
-only to `127.0.0.1`, a three-minute deadline and explicit cancellation. Tokens
-are stored in the shared Data Protection Keychain, never preferences or plaintext
-files. Only `meetings.space.created` is requested. API response bodies and tokens
-are not logged. No analytics, backend, Calendar permission, camera or microphone
-permission. Revocation is available in the setup window.
+[Google setup, optional signing and troubleshooting](docs/SETUP.md).
+Optional Developer ID signing/notarization remains available for easier installation;
+it is no longer required for shared OAuth storage because no storage is shared.
 
-## Platform evidence
+## Platform references
 
-- [Apple: Implementing a virtual conference extension](https://developer.apple.com/documentation/eventkit/implementing-a-virtual-conference-extension)
-- [Apple: EKVirtualConferenceProvider](https://developer.apple.com/documentation/eventkit/ekvirtualconferenceprovider)
-- [Apple: Discover Calendar and EventKit (WWDC23)](https://developer.apple.com/videos/play/wwdc2023/10052/)
-- [Apple: Sharing access to Keychain items](https://developer.apple.com/documentation/security/sharing-access-to-keychain-items-among-a-collection-of-apps)
-- [Apple: App Groups on macOS and iOS](https://developer.apple.com/forums/thread/721701)
-- [Google: Desktop OAuth and PKCE](https://developers.google.com/identity/protocols/oauth2/native-app)
-- [Google: spaces.create](https://developers.google.com/workspace/meet/api/reference/rest/v2/spaces/create)
-- [Google: Meet authentication and scope classification](https://developers.google.com/workspace/meet/api/guides/authenticate-authorize)
+- [Apple virtual conference extension](https://developer.apple.com/documentation/eventkit/implementing-a-virtual-conference-extension)
+- [Apple NSWorkspace explicit app opening](https://developer.apple.com/documentation/appkit/nsworkspace)
+- [Apple macOS Keychain implementations](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)
+- [Google Desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)
+- [Google Meet spaces.create](https://developers.google.com/workspace/meet/api/reference/rest/v2/spaces/create)
 
-The installed SDK headers mark the provider APIs macOS 12+. Apple's macOS Xcode
-template specifies the `com.apple.calendar.virtualconference` extension point and
-App Sandbox. The sample's newer minimum version is not the API introduction date.
-
-See [verification results](docs/VERIFICATION.md) for what has actually been tested.
-Original icon drawn from geometric shapes in `Scripts/Icon.swift`; no Google logo.
-This is an independent utility, not affiliated with Apple or Google. MIT license.
+EventKit provider APIs are public since macOS 12; this SwiftUI app targets macOS 13.
+No UI scripting or Calendar database access is used by the app. Original icon in
+Scripts/Icon.swift. Independent utility, not affiliated with Apple or Google. MIT.
