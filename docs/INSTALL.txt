@@ -1,4 +1,4 @@
-Calendar Meet 0.3.0 — macOS 13+, Apple Silicon and Intel
+Calendar Meet 0.4.0 — macOS 13+, Apple Silicon and Intel
 
 1. Open the DMG and drag Calendar Meet to Applications.
 2. Open Calendar Meet. This unsigned preview has no Developer ID signature or
@@ -9,7 +9,9 @@ Calendar Meet 0.3.0 — macOS 13+, Apple Silicon and Intel
 5. Enable the Calendar Meet extension in System Settings if requested, then
    fully quit and reopen Apple Calendar.
 6. Create or edit an event. Choose Google Meet in Add Location or Video Call.
-7. The new meeting is created automatically and its link returns to Calendar.
+7. Save the event to your Google calendar. Meet is created on that same event
+   after syncing, normally within a few seconds. The initial local setup link
+   is temporary; wait for meet.google.com to replace it after sync before joining.
 
 No Apple membership, App Group or shared Keychain entitlement is used. OAuth
 credentials stay in the containing app's macOS login Keychain. The Calendar
@@ -24,7 +26,8 @@ are never shared with those callers.
 
 No calendar data, Google tokens or credentials are sent to a backend. No Calendar,
 microphone or camera permission is needed by this app. Creating a Meet space does
-not create an extra Google Calendar event.
+not create an extra Google Calendar event. Version 0.4 requires reconnecting
+Google for Calendar access; enable Google Calendar API in the team Cloud project.
 
 Setup and exact verification limits:
 https://github.com/mikkelrobin/apple-google-meet/blob/main/docs/SETUP.md

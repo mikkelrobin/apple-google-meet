@@ -1,24 +1,13 @@
-Calendar Meet 0.3.0 — menu-bar app and conference presentation, macOS 13+, Intel and Apple Silicon.
+Calendar Meet 0.4.0 — direct Google Calendar conferences, macOS 13+, Intel and Apple Silicon.
 
-**UNSIGNED PREVIEW:** ad-hoc integrity signature only. No Developer ID or Apple
-notarization. macOS or managed-device policies may block installation.
+The manual Apple Calendar picker creates a pending request. Once saved and synced,
+Meet is created on the exact existing Google event via conferenceData, not via a
+separate Meet space. No duplicate event is inserted. Reconnect for Calendar access
+and enable Google Calendar API. Normal invitation updates remain enabled.
 
-Google login is now enabled without shared App Groups or Keychain entitlements.
-Credentials stay in the containing app's login Keychain. The Calendar extension
-opens the app and waits for a finished link over a one-use local callback.
-Choosing Google Meet in Calendar creates the meeting automatically, with no extra
-confirmation. The user opted into this behavior. Live callbacks are checked and
-requests deduplicated. Local apps can request new meeting spaces through the local
-integration; Google tokens never leave the main app's Keychain.
+Menu-bar only, original icon, no Dock icon, launch at login default on, right-click
+Quit. Generic CI installer needs the team's Desktop OAuth configuration imported.
+The local team installer includes that configuration, never user tokens.
 
-This generic GitHub build requires importing your team's Desktop OAuth client.
-No client export, token or certificate is committed to this repository. A locally
-built client-bundled installer is a separate artifact.
-
-See docs/VERIFICATION.md for exact live Calendar results and remaining limits;
-API compilation and extension discovery alone do not prove integration works.
-
-Minimal menu-bar-only UI, original icon, Google reconnect, Launch at Login default
-on and right-click Quit. Native single-link EventKit descriptors omit redundant
-titles/notes. Calendar still owns the visible Open/Join label; no private API or
-Google Calendar event duplication is used. See docs/JOIN-BUTTON.md.
+Ad-hoc signed preview; Developer ID signing and notarization require Apple credentials.
+See docs/VERIFICATION.md for real test results and remaining limits.

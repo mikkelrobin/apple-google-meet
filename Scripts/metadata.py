@@ -3,7 +3,7 @@
 import os, pathlib, plistlib, sys
 root = pathlib.Path(sys.argv[1]); preview = sys.argv[2] == 'preview'
 base = dict(CFBundleDevelopmentRegion='en', CFBundleInfoDictionaryVersion='6.0',
-            CFBundleShortVersionString='0.3.0', CFBundleVersion='3',
+            CFBundleShortVersionString='0.4.0', CFBundleVersion='4',
             LSMinimumSystemVersion='13.0', CMPreview=preview,
             NSHumanReadableCopyright='Copyright © 2026 Mikkel Robin. MIT License.')
 for name, identifier, executable, package in [

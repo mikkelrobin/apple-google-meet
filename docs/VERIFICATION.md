@@ -1,52 +1,75 @@
-# Verification — Calendar Meet 0.3.0, 19 November 2026
+# Verification — Calendar Meet 0.4.0, 19 November 2026
 
-## Automated checks
+## Automated
 
-52 checks pass locally, including actual loopback callback exchanges, OAuth,
-API error handling, conference creation, and four new descriptor assertions:
-exactly one join option, unchanged direct Meet URI, nil optional titles, and no
-duplicate generic URL in notes. Google HTTP responses in automated tests are mocked.
-The loopback tests need networking permitted by the execution environment.
+85 checks passed locally. Coverage includes OAuth PKCE/state/loopback, old-grant
+migration, persisted pending requests, strict local setup URL parsing, calendar
+pagination/eligibility, exact marker verification, existing-event PATCH with
+native hangoutsMeet data/version, stable request IDs, ETags on both phases,
+preserving notes/dates/participants, finalizing only after the native URI exists,
+idempotent finalization, rejecting non-organizer/cancelled/recurring-exception
+events and existing conferences, asynchronous creation, and HTTP error handling.
+Google HTTP responses are mocked; loopback callbacks use actual local sockets.
+Universal binaries for arm64/x86_64, macOS 13+ pass strict recursive ad-hoc signature,
+bundle, sandbox, icon and extension metadata checks. Intel linker compatibility
+archive warnings remain as in 0.3.0; physical Intel/macOS 13 tests were not performed.
 
-## Investigation
+## Live Google/Calendar validation
 
-The old installed 0.2.0 event was observed in Apple Calendar: **button Open,
-Description Join**. Thus an accessibility description alone is not proof that the
-visible label is Join. See JOIN-BUTTON.md for the supported API boundaries.
+The user enabled Google Calendar API and personally granted the new Calendar
+OAuth permissions. Existing Google login required reconnect for these broader
+scopes. Google tokens remain in the app's login Keychain.
 
-## Live and distribution checks
+The integration was tested with disposable events without attendees in the user's
+primary Google calendar, created via Apple Calendar's normal event UI and manual
+Google Meet picker. The server returned native event-owned Meet conferences and
+preserved the original notes, times and reminder. Event searches verified one
+existing event rather than an inserted duplicate. App restart recovered a saved
+pending request and completed native creation.
 
-- Universal arm64 + x86_64 app/extension built with the installed macOS 27.2 SDK,
-  minimum deployment target macOS 13. The command-line toolchain emitted warnings
-  about an arm64-only compatibility archive while linking Intel; Intel binaries
-  linked successfully, but have not been run on physical Intel hardware.
-- Both bundles pass strict recursive ad-hoc signature verification, architecture,
-  sandbox, original icon, extension point/principal class and LSUIElement checks.
-- Installed over the existing app; pluginkit selected **0.3.0** from /Applications.
-- Live test on this Apple Silicon Mac: quit/reopened Calendar, created a disposable
-  Google-calendar event without attendees, selected Google Meet in the actual
-  video-call picker, saved it and reopened it. A real Meet link returned without
-  a per-meeting app dialog. Google sync added its own dial-in/security notes.
-- The saved event visibly showed **Open**, and AX reported **button Open,
-  Description Join**. The nil-title descriptor does NOT solve the literal label
-  on this system. No unsupported API is used to alter it.
-- Deleted the disposable event and verified it disappeared. The generated Meet
-  space is not deleted by removing a Calendar event. No attendees were invited.
-- Opened the new app's popover: only original icon/name, Google connected,
-  Reconnect Google Account and Launch at Login. Existing Keychain login survived.
-  Launch at Login was initially on; switched off and back on successfully,
-  reopened the popover and verified on. Actual login after reboot is untested.
-- Right-click Quit is implemented through NSStatusItem and NSMenu and compiles;
-  the computer-use interface did not expose the status item for that interaction,
-  so the right-click/quit path has not been exercised interactively.
-- Fresh OAuth/reconnect browser consent was not repeated; existing login and real
-  API creation worked. Google OAuth protocol coverage passes automated tests.
-- Mounted the final DMG read-only; payload signature, universal bundle checks,
-  Applications shortcut and SHA-256 checksum all passed.
-- Developer ID signing/notarization is not available locally. Installer is an
-  ad-hoc signed preview with a bundled team Desktop OAuth client (no user tokens).
-  A downloaded copy may need macOS approval, and managed-device policy can block it.
-  This is recorded in distribution notes, with no signing disclaimer in app UI.
+The first prototypes exposed a sync problem: removing the temporary URI, or its
+exported description block, could leave a stale/empty conference in Apple Calendar.
+The final flow instead replaces just the exact marker with the same event's native
+Meet URI after Google reports success. An explicit test of this replacement
+produced a real meet.google.com conference row in Calendar; clicking it opened
+the verified matching Meet URL in Safari without a temporary-link warning. No call
+was joined. Apple still visibly displayed **Open**, with accessibility description
+**Join**; no public API forces the literal label.
 
-Historical 0.2.0 results are preserved separately in VERIFICATION-0.2.0.md; they are
-not evidence that the 0.3.0 build has passed live tests.
+The early prototype's custom-scheme warning was cancelled; automatic approval
+review rejected opening that temporary link. The final verified action uses the
+correct event-owned HTTPS Meet URI, so no warning bypass is needed.
+
+Gmail searches including Sent/Trash found the earlier 0.3.0/Testing code-update
+messages, confirming the correct mailbox, but no messages for the 0.4.0 test titles
+at the observation times. This proves no such mail was observed during testing,
+not that Google can never send any email. Normal guest updates remain enabled.
+
+The final 0.4.0 build was then tested again with a NEW event, “Calendar Meet 040
+automatic acceptance,” with original notes and no guests. Both Calendar API phases
+ran automatically in the installed app, with no diagnostic/manual event patches.
+Read-back confirmed a native Google Meet link, unchanged dates/reminder/notes and
+only one matching event. After sync/reopening Calendar, its conference row showed
+meet.google.com, and clicking Open loaded the EXACT matching native Meet URI in
+Safari without the temporary-link warning. No actual call was joined.
+
+All named disposable test events were deleted in Calendar and disappeared from
+the visible week. Existing events were left untouched. Created Meet conferences
+are not deleted when the test Calendar events are removed.
+
+The final DMG was mounted read-only: packaged signatures, architectures, extension,
+icons, sandbox and Applications shortcut passed. SHA-256 checksum verification
+passed. No Developer ID or notarization is claimed. Prior results are in VERIFICATION-0.3.0.md.
+
+## Limits
+
+- Meet is created after saving/syncing; the draft's temporary link is not ready to join.
+- Only connected-account Google events organized by that account are eligible.
+  iCloud/Exchange and recurring exceptions are not supported. Recurring-series
+  code paths and guest invitation delivery require additional real-world testing.
+- Sync timing is controlled by Apple/Google and can take longer than the ten-second
+  app polling interval. Quitting the menu-bar app postpones work until relaunch.
+- No trusted Developer ID/notarization credentials are available locally. The team
+  installer is ad-hoc signed and may require macOS approval on downloaded copies.
+- Right-click Quit, actual reboot/login and physical Intel use remain untested
+  interactively. The menu-bar UI and original icon are retained.

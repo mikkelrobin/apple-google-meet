@@ -3,30 +3,34 @@
 Native macOS Swift app and EventKit virtual conference extension adding **Google
 Meet** to Apple Calendar's **Add Location or Video Call** picker.
 
-## 0.3.0 — menu bar and native conference presentation
+## 0.4.0 — create Meet on the actual Google Calendar event
 
-A minimal menu-bar-only app: click the original icon for Google sign-in/reconnect
-and Launch at Login (requested on by default); right-click for Quit. No Dock icon,
-setup window, test-meeting controls or signing notices in the app. A team installer
-with a bundled Desktop OAuth client needs only the user's Google sign-in. Generic
-builds without that configuration show one setup-file button.
+Keep creating events in Apple Calendar and manually choose Google Meet. The
+extension now inserts a unique local `calendarmeet://pending/...` setup link.
+After the event is saved and synced, the menu-bar app finds that exact marker in
+writable Google calendars and requests a native `hangoutsMeet` conference on the
+existing Google event ID with `conferenceDataVersion=1`. It never inserts another
+event and no longer calls Meet `spaces.create`.
 
-The Calendar extension returns a real `EKVirtualConferenceDescriptor` with exactly
-one `EKVirtualConferenceURLDescriptor`: the direct HTTPS Google Meet URI, first and
-unchanged. Optional titles and duplicate conference notes are omitted, following
-Apple's WWDC23 single-entry-point example. This allows system presentation; **it
-does not force the visible action label to “Join.”** Apple's public descriptor API
-has no action-label property. See [investigation](docs/JOIN-BUTTON.md) and
-[verification](docs/VERIFICATION.md) for actual Calendar results.
+A reconnect is required for Calendar event read/write and calendar-list read
+permissions. Enable Google Calendar API in the team's Google Cloud project.
+The minimal menu-bar UI, original icon, no Dock icon, Launch at Login default on,
+and right-click Quit are retained. No signing notices are shown in the app.
 
-Google tokens stay in the containing app's login Keychain. The sandboxed extension
-opens that app and receives only a meeting URL/error over a short-lived loopback
-callback protected by a random one-use capability. Existing OAuth scope and Meet
-space creation are preserved. No extra Google Calendar event is created, no
-Calendar permission is requested, and private Apple APIs are not used.
+Meet becomes available **after saving and syncing**, not while editing an unsaved
+draft. Google Calendar then syncs its native conference back to Apple Calendar.
+Normal guest invitation/update emails remain enabled. The special meeting-code
+replacement mail was not observed in the live 0.4.0 tests; Google still controls
+its notifications. Apple still owns the visible Open/Join label.
 
-Local builds use ad-hoc signatures unless Developer ID credentials are supplied.
-Signing and notarization remain supported by the signed release workflow.
+Only explicitly marked, unambiguous events organized by the connected account
+are modified. ETags protect concurrent edits, stable request IDs prevent duplicate
+creation, and unrelated fields are preserved. Existing conferences are never
+overwritten. Recurring series are supported as a whole; recurring exceptions are
+rejected. iCloud/Exchange events are not processed. Pending requests survive app
+restart, expire after 24 hours, and are never matched by title/date guesses.
+
+See [design](docs/DIRECT-CALENDAR.md) and [verification](docs/VERIFICATION.md).
 
 ![Original Calendar Meet icon](docs/AppIcon.png)
 
@@ -45,8 +49,8 @@ GitHub's generic prerelease requires import. The signed workflow supports an
 optional CI client configuration. Local client-bundled installers can be shared directly.
 
 Universal arm64 + x86_64, macOS 13+. No third-party libraries or project generator.
-Both targets remain sandboxed. No Calendar, contacts, camera or microphone access.
-Only the Google `meetings.space.created` scope is requested. PKCE S256, random
+Both targets remain sandboxed. No macOS Calendar, contacts, camera or microphone permission is requested.
+The app requests `calendar.events` and `calendar.calendarlist.readonly`. PKCE S256, random
 OAuth state, loopback-only callbacks, deadlines, cancellation, refresh and revocation
 are implemented. Tokens and API response bodies are not logged.
 

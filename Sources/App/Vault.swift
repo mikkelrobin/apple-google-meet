@@ -38,22 +38,14 @@ enum Vault {
 
 actor ConferenceService {
     static let shared = ConferenceService()
-    // Serialize refresh and space requests within each process. Refresh tokens are preserved.
-    private var tail: Task<Void, Never>?
-    func create() async throws -> URL {
-        let previous = tail
-        let work = Task<URL, Error> {
-            await previous?.value
-            guard var credential = try Vault.load() else { throw MeetError("Open Calendar Meet and connect Google first.") }
-            let api = GoogleAPI()
-            if credential.expiresAt < Date().addingTimeInterval(60) {
-                credential = try await api.refresh(credential)
-                try Vault.save(credential)
-            }
-            // Never automatically retry a POST: a lost response may already have created a space.
-            return try await api.createSpace(accessToken: credential.accessToken)
+    func token() async throws -> String {
+        guard var credential = try Vault.load(), credential.supportsCalendar else {
+            throw MeetError("Reconnect Google Account to allow creating Meet on your Calendar events.")
         }
-        tail = Task { _ = try? await work.value }
-        return try await work.value
+        if credential.expiresAt < Date().addingTimeInterval(60) {
+            credential = try await GoogleAPI().refresh(credential)
+            try Vault.save(credential)
+        }
+        return credential.accessToken
     }
 }
