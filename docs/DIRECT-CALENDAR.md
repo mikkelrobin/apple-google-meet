@@ -1,3 +1,5 @@
+> Historical design for 0.4.0/0.4.1. Removed in 0.4.2 because technical Calendar updates produced extra guest mail. See README.md and VERIFICATION.md for the current Meet-first flow.
+
 # Direct Google Calendar conferences — 0.4.0
 
 ## User flow

@@ -38,14 +38,18 @@ enum Vault {
 
 actor ConferenceService {
     static let shared = ConferenceService()
-    func token() async throws -> String {
-        guard var credential = try Vault.load(), credential.supportsCalendar else {
-            throw MeetError("Reconnect Google Account to allow creating Meet on your Calendar events.")
+    func create() async throws -> URL {
+        guard var credential = try Vault.load(), credential.supportsMeet else {
+            throw MeetError("Reconnect Google Account to allow creating Meet links.")
         }
+        let api = GoogleAPI()
         if credential.expiresAt < Date().addingTimeInterval(60) {
-            credential = try await GoogleAPI().refresh(credential)
+            credential = try await api.refresh(credential)
+            try Task.checkCancellation()
             try Vault.save(credential)
         }
-        return credential.accessToken
+        try Task.checkCancellation()
+        // Never retry a POST automatically: a lost response can already have created a space.
+        return try await api.createSpace(accessToken: credential.accessToken)
     }
 }

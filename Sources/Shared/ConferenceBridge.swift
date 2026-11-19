@@ -6,9 +6,9 @@ struct BridgeReply: Codable {
     let error: String?
     func result() throws -> URL {
         if let error { throw MeetError(error) }
-        guard let text = meetingURL, let url = URL(string: text), PendingConference.id(from: url) != nil else {
-            throw MeetError("The app returned an invalid Calendar setup link.")
-        }
+        guard let text = meetingURL, let url = URL(string: text), url.scheme == "https",
+              url.host == "meet.google.com", url.port == nil, url.user == nil,
+              url.password == nil, url.path.count > 1 else { throw MeetError("The app returned an invalid Meet link.") }
         return url
     }
 }

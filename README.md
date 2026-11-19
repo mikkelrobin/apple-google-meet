@@ -3,47 +3,28 @@
 Native macOS Swift app and EventKit virtual conference extension adding **Google
 Meet** to Apple Calendar's **Add Location or Video Call** picker.
 
-## 0.4.1 — menu-bar connection status and sign-out
+## 0.4.2 — Meet is ready before the invitation is sent
 
-The menu bar uses a monochrome template video symbol with a separate green
-(signed in) or red (signed out/reconnect required) dot. macOS adapts the symbol to
-light/dark appearance. The original app/installer icon is unchanged.
+Create the event in Apple Calendar, manually select Google Meet, add guests and
+send as usual. The provider now creates a fresh real Meet space BEFORE returning
+its conference descriptor. No temporary setup URL goes into the invitation.
 
-Sign Out waits for cancelled in-flight work, removes the local Keychain login and
-clears pending/account-specific cached links. It preserves the team's Google
-configuration, existing Calendar events and native Meet conferences. Google OAuth
-grants are not revoked; they can be removed separately in Google Account settings.
-A rejected login/refresh switches status to disconnected when detected on use.
-The indicator represents account authentication, not live internet reachability.
+The app no longer searches or patches Google Calendar events, polls pending
+requests, or sends conference/description update notifications to guests. Google
+can replace the fresh Meet code during Calendar sync and notify the organizer;
+the user explicitly accepts that organizer email. A recipient mailbox test is
+required before claiming that a particular account sends only one invitation.
+See [verification](docs/VERIFICATION.md).
 
-## Direct Meet creation on the actual Google Calendar event
+Reconnect once for the `meetings.space.created` permission. Calendar API scopes
+are no longer requested or used. The existing desktop OAuth client and Keychain
+storage are retained. No hosted server is required.
 
-Keep creating events in Apple Calendar and manually choose Google Meet. The
-extension now inserts a unique local `calendarmeet://pending/...` setup link.
-After the event is saved and synced, the menu-bar app finds that exact marker in
-writable Google calendars and requests a native `hangoutsMeet` conference on the
-existing Google event ID with `conferenceDataVersion=1`. It never inserts another
-event and no longer calls Meet `spaces.create`.
-
-A reconnect is required for Calendar event read/write and calendar-list read
-permissions. Enable Google Calendar API in the team's Google Cloud project.
-The minimal menu-bar UI, original icon, no Dock icon, Launch at Login default on,
-and right-click Quit are retained. No signing notices are shown in the app.
-
-Meet becomes available **after saving and syncing**, not while editing an unsaved
-draft. Google Calendar then syncs its native conference back to Apple Calendar.
-Normal guest invitation/update emails remain enabled. The special meeting-code
-replacement mail was not observed in the live 0.4.0 tests; Google still controls
-its notifications. Apple still owns the visible Open/Join label.
-
-Only explicitly marked, unambiguous events organized by the connected account
-are modified. ETags protect concurrent edits, stable request IDs prevent duplicate
-creation, and unrelated fields are preserved. Existing conferences are never
-overwritten. Recurring series are supported as a whole; recurring exceptions are
-rejected. iCloud/Exchange events are not processed. Pending requests survive app
-restart, expire after 24 hours, and are never matched by title/date guesses.
-
-See [design](docs/DIRECT-CALENDAR.md) and [verification](docs/VERIFICATION.md).
+The monochrome menu-bar video symbol, green/red login dot, original app icon,
+Launch at Login default on, no Dock icon, Google reconnect and Sign Out remain.
+Sign Out cancels in-flight creation before deleting local login. Existing events
+and Meet conferences are preserved. Old Calendar-patching queues are retired and
+never replayed after upgrading or switching accounts.
 
 ![Original Calendar Meet icon](docs/AppIcon.png)
 
@@ -63,7 +44,7 @@ optional CI client configuration. Local client-bundled installers can be shared 
 
 Universal arm64 + x86_64, macOS 13+. No third-party libraries or project generator.
 Both targets remain sandboxed. No macOS Calendar, contacts, camera or microphone permission is requested.
-The app requests `calendar.events` and `calendar.calendarlist.readonly`. PKCE S256, random
+The app requests only `meetings.space.created`. PKCE S256, random
 OAuth state, loopback-only callbacks, deadlines, cancellation, refresh and revocation
 are implemented. Tokens and API response bodies are not logged.
 

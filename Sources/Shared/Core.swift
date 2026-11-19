@@ -34,12 +34,11 @@ struct Credential: Codable {
     var refreshToken: String
     var expiresAt: Date
     var scopes: [String]? = nil
-    var supportsCalendar: Bool { Set(OAuth.scopes).isSubset(of: Set(scopes ?? [])) }
+    var supportsMeet: Bool { Set(OAuth.scopes).isSubset(of: Set(scopes ?? [])) }
 }
 
 enum OAuth {
-    static let scopes = ["https://www.googleapis.com/auth/calendar.events",
-                         "https://www.googleapis.com/auth/calendar.calendarlist.readonly"]
+    static let scopes = ["https://www.googleapis.com/auth/meetings.space.created"]
     static let scope = scopes.joined(separator: " ")
     static func random() throws -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
@@ -103,7 +102,7 @@ struct GoogleAPI {
                                         "client_secret": client.clientSecret, "redirect_uri": redirect, "code_verifier": verifier])
         guard let refresh = response.refresh_token, !refresh.isEmpty else { throw MeetError("Google did not issue offline access. Reconnect and grant access.") }
         if let scopes = response.scope, !Set(OAuth.scopes).isSubset(of: Set(scopes.split(separator: " ").map(String.init))) {
-            throw MeetError("Calendar permission was not granted. Reconnect and allow calendar access.")
+            throw MeetError("Google Meet permission was not granted. Reconnect and allow creating Meet spaces.")
         }
         return Credential(client: client, accessToken: response.access_token, refreshToken: refresh,
                           expiresAt: Date().addingTimeInterval(response.expires_in),
@@ -116,6 +115,20 @@ struct GoogleAPI {
                           refreshToken: response.refresh_token ?? credential.refreshToken,
                           expiresAt: Date().addingTimeInterval(response.expires_in),
                           scopes: response.scope?.split(separator: " ").map(String.init) ?? credential.scopes)
+    }
+    func createSpace(accessToken: String) async throws -> URL {
+        struct Space: Decodable { let meetingUri: String }
+        var request = URLRequest(url: URL(string: "https://meet.googleapis.com/v2/spaces")!)
+        request.httpMethod = "POST"
+        request.httpBody = Data("{}".utf8)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let space: Space = try await send(request)
+        guard let url = URL(string: space.meetingUri), url.scheme == "https", url.host == "meet.google.com", url.port == nil,
+              url.user == nil, url.password == nil, !url.path.isEmpty, url.path != "/" else {
+            throw MeetError("Google returned an invalid meeting link.")
+        }
+        return url
     }
     func revoke(_ token: String) async throws {
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/revoke")!)
@@ -136,8 +149,8 @@ struct GoogleAPI {
             switch http.statusCode {
             case 401: throw GoogleAuthorizationError()
             case 400 where request.url?.host == "oauth2.googleapis.com": throw GoogleAuthorizationError()
-            case 400: throw MeetError("Google could not accept this Calendar request (HTTP 400).")
-            case 403: throw MeetError("Google denied access. Check Calendar API, consent, test users and your Workspace administrator. (HTTP 403)")
+            case 400: throw MeetError("Google could not accept this request (HTTP 400).")
+            case 403: throw MeetError("Google denied access. Check Meet API, consent, test users and your Workspace administrator. (HTTP 403)")
             case 404: throw MeetError("The Google Calendar event no longer exists.")
             case 412: throw MeetError("The event changed during setup. Waiting for Calendar to sync before retrying.")
             case 429: throw MeetError("Google's request limit was reached. Please try again later.")

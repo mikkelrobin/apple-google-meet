@@ -61,13 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: SetupView(model: model))
         model.configureLoginDefault()
-        model.startReconciliation()
     }
     func application(_ application: NSApplication, open urls: [URL]) {
-        urls.forEach { url in
-            if PendingConference.id(from: url) != nil { model.openPending(url); showPopover() }
-            else { model.handleBridge(url) }
-        }
+        urls.forEach { model.handleBridge($0) }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showPopover(); return false
@@ -122,8 +118,11 @@ final class SetupModel: ObservableObject {
     var signingIn: Bool { loginTask != nil }
     private var loginTask: Task<Void, Never>?
     init() {
-        do { if let credential = try Vault.load() { client = credential.client; connected = credential.supportsCalendar
-            if !connected { message = "Reconnect Google to enable Calendar access." } } }
+        // Retire old Calendar-patching jobs on upgrade. Never replay them under
+        // this flow or a subsequently selected Google account.
+        clearLegacyRequests()
+        do { if let credential = try Vault.load() { client = credential.client; connected = credential.supportsMeet
+            if !connected { message = "Reconnect Google to enable Meet access." } } }
         catch { message = error.localizedDescription }
         if client == nil, let url = Bundle.main.url(forResource: "GoogleOAuthClient", withExtension: "json") {
             do { client = try OAuthClient.parse(Data(contentsOf: url)) }
@@ -166,132 +165,27 @@ final class SetupModel: ObservableObject {
         }
     }
     func cancel() { loginTask?.cancel() }
+    private var conferenceTask: Task<Void, Never>?
+    private var signingOut = false
+    private func clearLegacyRequests() {
+        UserDefaults.standard.removeObject(forKey: "pendingCalendarConferences")
+        UserDefaults.standard.removeObject(forKey: "resolvedCalendarConferences")
+    }
     func signOut() {
-        guard !busy else { return }
-        busy = true
-        let work = reconciliation
+        guard !signingIn, !signingOut else { return }
+        signingOut = true; busy = true
+        let work = conferenceTask
         work?.cancel()
         Task { @MainActor in
-            // Wait for in-flight refresh/Calendar work before deleting credentials,
-            // so a late refresh cannot silently sign the user back in.
             await work?.value
-            defer { busy = false }
+            defer { signingOut = false; busy = false }
             do {
                 try Vault.remove()
-                pending.removeAll(); persistPending()
-                resolved.removeAll()
-                UserDefaults.standard.removeObject(forKey: "resolvedCalendarConferences")
+                clearLegacyRequests()
                 connected = false; message = ""
-            } catch {
-                message = error.localizedDescription
-                startReconciliation()
-            }
+            } catch { message = error.localizedDescription }
         }
     }
-
-    private var pending: [PendingConference] = {
-        guard let data = UserDefaults.standard.data(forKey: "pendingCalendarConferences") else { return [] }
-        return ((try? JSONDecoder().decode([PendingConference].self, from: data)) ?? []).filter { PendingConference.validID($0.id) }
-    }()
-    private var resolved: [String: String] = UserDefaults.standard.dictionary(forKey: "resolvedCalendarConferences") as? [String: String] ?? [:]
-    private var reconciliation: Task<Void, Never>?
-    private func persistPending() {
-        UserDefaults.standard.set(try? JSONEncoder().encode(pending), forKey: "pendingCalendarConferences")
-    }
-    func openPending(_ url: URL) {
-        guard let id = PendingConference.id(from: url) else { return }
-        if let text = resolved[id], let link = URL(string: text), link.scheme == "https", link.host == "meet.google.com" {
-            NSWorkspace.shared.open(link)
-        } else {
-            message = "Save the event in your Google calendar and wait for sync. Meet is not ready yet."
-            startReconciliation()
-        }
-    }
-    func startReconciliation() {
-        guard reconciliation == nil else { return }
-        reconciliation = Task { @MainActor in
-            defer { reconciliation = nil }
-            var calendars: [CalendarEntry] = []
-            var refreshedAt = Date.distantPast
-            while !Task.isCancelled, !pending.isEmpty {
-                if connected, !busy {
-                    do {
-                        let token = try await ConferenceService.shared.token()
-                        let api = CalendarConferenceAPI()
-                        if Date().timeIntervalSince(refreshedAt) > 300 {
-                            calendars = try await api.calendars(token: token); refreshedAt = Date()
-                            if calendars.isEmpty { message = "No writable Google calendar supports Meet for this account." }
-                        }
-                        // Work on a snapshot: incoming Calendar requests may append while awaiting HTTP.
-                        for var request in pending {
-                            do {
-                            try Task.checkCancellation()
-                            if Date().timeIntervalSince(request.createdAt) > 86400 {
-                                pending.removeAll { $0.id == request.id }; persistPending()
-                                message = "A Meet request expired. Choose Google Meet again on the saved Google Calendar event."
-                                continue
-                            }
-                            let event: GoogleEvent
-                            let calendarID: String
-                            if let cid = request.calendarID, let eid = request.eventID {
-                                calendarID = cid
-                                event = try await api.event(calendarID: cid, eventID: eid, token: token)
-                            } else {
-                                var matches: [(String, GoogleEvent)] = []
-                                for calendar in calendars {
-                                    matches += try await api.matches(request, calendarID: calendar.id, token: token).map { (calendar.id, $0) }
-                                }
-                                guard matches.count <= 1 else {
-                                    message = "This Meet request appears on multiple events. Remove it and choose Google Meet separately on each event."
-                                    continue
-                                }
-                                guard let match = matches.first else { continue }
-                                calendarID = match.0; event = match.1
-                                request.calendarID = calendarID; request.eventID = event.id
-                                if let index = pending.firstIndex(where: { $0.id == request.id }) { pending[index] = request; persistPending() }
-                            }
-                            if event.status == "cancelled" {
-                                pending.removeAll { $0.id == request.id }; persistPending(); continue
-                            }
-                            let result: GoogleEvent
-                            if event.conferenceData?.createRequest?.requestId == request.id {
-                                result = event
-                            } else {
-                                // Re-fetch after discovery, then use If-Match to avoid racing user edits.
-                                let latest = try await api.event(calendarID: calendarID, eventID: event.id, token: token)
-                                guard latest.carries(request) else {
-                                    pending.removeAll { $0.id == request.id }; persistPending(); continue
-                                }
-                                try Task.checkCancellation()
-                                result = try await api.create(on: latest, calendarID: calendarID, pending: request, token: token)
-                            }
-                            if result.conferenceData?.createRequest?.status?.statusCode == "failure" {
-                                throw MeetError("Google could not create this meeting. Remove the pending link and select Google Meet again.")
-                            }
-                            if let link = result.meetURL {
-                                try Task.checkCancellation()
-                                _ = try await api.finish(result, calendarID: calendarID, pending: request, token: token)
-                                resolved[request.id] = link.absoluteString
-                                if resolved.count > 100 { resolved = [request.id: link.absoluteString] }
-                                UserDefaults.standard.set(resolved, forKey: "resolvedCalendarConferences")
-                                pending.removeAll { $0.id == request.id }; persistPending()
-                                message = pending.isEmpty ? "" : "Waiting for saved events to sync…"
-                            }
-                            } catch {
-                                if error is GoogleAuthorizationError { connected = false }
-                                if !(error is CancellationError) { message = error.localizedDescription }
-                            }
-                        }
-                    } catch {
-                        if error is GoogleAuthorizationError { connected = false }
-                        if !(error is CancellationError) { message = error.localizedDescription }
-                    }
-                }
-                try? await Task.sleep(nanoseconds: 10_000_000_000)
-            }
-        }
-    }
-    private var bridgeBusy = false
     private var handledCallbacks: [URL: Date] = [:]
     func handleBridge(_ url: URL) {
         let callback: URL
@@ -300,36 +194,28 @@ final class SetupModel: ObservableObject {
         handledCallbacks = handledCallbacks.filter { Date().timeIntervalSince($0.value) < 120 }
         guard handledCallbacks[callback] == nil else { return }
         handledCallbacks[callback] = Date()
-        guard !bridgeBusy else {
+        guard !busy, conferenceTask == nil else {
             Task { try? await BridgeRequest.reply(BridgeReply(meetingURL: nil, error: "Another request is in progress. Try again."), to: callback) }
             return
         }
-        bridgeBusy = true
-        Task { @MainActor in
-            defer { bridgeBusy = false }
-            // Ignore delayed Launch Services requests after Calendar stopped waiting.
+        busy = true
+        conferenceTask = Task { @MainActor in
+            defer { busy = signingOut; conferenceTask = nil }
             guard await BridgeRequest.isWaiting(callback) else { return }
             let reply: BridgeReply
-            if !connected {
-                message = "Calendar reached the app successfully. Connect Google, then choose Google Meet in Calendar again."
-                reply = BridgeReply(meetingURL: nil, error: "Open Calendar Meet and connect Google, then select Google Meet again.")
-            } else if busy {
-                reply = BridgeReply(meetingURL: nil, error: "Finish the current action in Calendar Meet, then try again.")
-            } else {
-                busy = true
-                do {
-                    guard pending.count < 16 else { throw MeetError("Too many unfinished requests. Save your Calendar events first.") }
-                    let request = PendingConference.make()
-                    pending.append(request)
-                    persistPending()
-                    reply = BridgeReply(meetingURL: request.url.absoluteString, error: nil)
-                    message = "Save the event in your Google calendar. Meet will be added after sync."
-                    startReconciliation()
-                } catch { reply = BridgeReply(meetingURL: nil, error: error.localizedDescription) }
-                busy = false
+            do {
+                guard connected else { throw MeetError("Open Calendar Meet and reconnect Google, then select Google Meet again.") }
+                let link = try await ConferenceService.shared.create()
+                try Task.checkCancellation()
+                reply = BridgeReply(meetingURL: link.absoluteString, error: nil)
+                message = ""
+            } catch {
+                if error is GoogleAuthorizationError { connected = false }
+                if !(error is CancellationError) { message = error.localizedDescription }
+                reply = BridgeReply(meetingURL: nil, error: error is CancellationError ? "Meeting creation cancelled." : error.localizedDescription)
             }
             do { try await BridgeRequest.reply(reply, to: callback) }
-            catch { message = error.localizedDescription }
+            catch { if !signingOut { message = error.localizedDescription } }
         }
     }
 }
@@ -353,7 +239,7 @@ struct SetupView: View {
                 Button(model.connected ? "Reconnect Google Account" : "Sign in with Google", action: model.connect)
                     .buttonStyle(.borderedProminent).disabled(model.busy)
                 if model.connected {
-                    Button("Sign Out", action: model.signOut).disabled(model.busy)
+                    Button("Sign Out", action: model.signOut).disabled(model.signingIn)
                 }
             }
             if model.busy {

@@ -1,37 +1,19 @@
-Calendar Meet 0.4.1 — macOS 13+, Apple Silicon and Intel
+Calendar Meet 0.4.2 — macOS 13+, Apple Silicon and Intel
 
 1. Open the DMG and drag Calendar Meet to Applications.
-2. Open Calendar Meet. This unsigned preview has no Developer ID signature or
-   Apple notarization; macOS may require you to approve this specific app in
-   System Settings > Privacy & Security. Organization-managed Macs may block it.
-3. If a Google client is not bundled, import your team's Desktop OAuth JSON.
-4. Click the menu-bar icon, then Sign in with Google and finish sign-in with your Workspace account.
-5. Enable the Calendar Meet extension in System Settings if requested, then
-   fully quit and reopen Apple Calendar.
-6. Create or edit an event. Choose Google Meet in Add Location or Video Call.
-7. Save the event to your Google calendar. Meet is created on that same event
-   after syncing, normally within a few seconds. The initial local setup link
-   is temporary; wait for meet.google.com to replace it after sync before joining.
+2. Open the app and click its video symbol in the menu bar.
+3. Reconnect Google once for Meet access. A team build already includes the sign-in configuration.
+4. Create or edit an event in Apple Calendar and choose Google Meet manually.
+5. Wait for the actual Meet link, then add guests and send normally from the same editor.
 
-No Apple membership, App Group or shared Keychain entitlement is used. OAuth
-credentials stay in the containing app's macOS login Keychain. The Calendar
-extension receives only a Meet URL or error over a short-lived local callback.
+A fresh Meet link is returned before Calendar receives the conference. The app
+makes no later Calendar/guest-notification updates. Google may replace the code
+and email the organizer; that organizer notice is accepted for this design.
 
-Click the menu-bar icon to reconnect or change Launch at Login (default on).
-Right-click the icon to Quit. There is no Dock icon. The extension can reopen it
-in the background when needed.
-Complete Google setup before using the Calendar menu. The local integration
-allows other apps on your Mac to request new meeting spaces; OAuth credentials
-are never shared with those callers.
+Green dot: Google signed in. Red dot: sign in/reconnect required. Sign Out removes
+local login and cancels in-flight creation, without deleting existing meetings.
+Launch at Login defaults on. Right-click the icon for Quit. No Dock icon.
 
-No calendar data, Google tokens or credentials are sent to a backend. No Calendar,
-microphone or camera permission is needed by this app. Creating a Meet space does
-not create an extra Google Calendar event. Version 0.4 requires reconnecting
-Google for Calendar access; enable Google Calendar API in the team Cloud project.
-
-Setup and exact verification limits:
-https://github.com/mikkelrobin/apple-google-meet/blob/main/docs/SETUP.md
-
-The menu-bar video symbol adapts to light/dark mode. Green dot means Google is
-signed in; red means sign-in/reconnect is needed. Sign Out removes local login
-and cancels unfinished requests. Existing Calendar events and Meet links remain.
+Preview distribution uses ad-hoc signatures, without Developer ID/notarization;
+macOS may require per-app approval. Managed-device policies can block installation.
+No global security settings need to be disabled.

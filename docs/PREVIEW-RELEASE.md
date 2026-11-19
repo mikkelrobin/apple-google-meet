@@ -1,17 +1,12 @@
-Calendar Meet 0.4.1 — direct Google Calendar conferences, macOS 13+, Intel and Apple Silicon.
+Calendar Meet 0.4.2 — Meet-before-invitation fallback.
 
-The manual Apple Calendar picker creates a pending request. Once saved and synced,
-Meet is created on the exact existing Google event via conferenceData, not via a
-separate Meet space. No duplicate event is inserted. Reconnect for Calendar access
-and enable Google Calendar API. Normal invitation updates remain enabled.
+Creates a real Meet URI before returning to Apple Calendar. Removes the later
+Calendar conference/description PATCH requests that produced extra guest emails.
+Google may still send the organizer a meeting-code-update notice. Reconnect once
+for Meet-only access. No hosted server or Calendar API permission is requested.
 
-Menu-bar only, original icon, no Dock icon, launch at login default on, right-click
-Quit. Generic CI installer needs the team's Desktop OAuth configuration imported.
-The local team installer includes that configuration, never user tokens.
+Preserves monochrome status icon and green/red dot, original app icon, launch at
+login, menu-bar-only UI, reconnect, Sign Out and right-click Quit.
 
-Ad-hoc signed preview; Developer ID signing and notarization require Apple credentials.
-See docs/VERIFICATION.md for real test results and remaining limits.
-
-Monochrome menu-bar video symbol with green/red authentication dot. Sign Out
-removes local login, cancels in-flight work and clears queued account requests.
-The original app icon and existing Calendar/Meet events are preserved.
+Ad-hoc preview signature, no Developer ID/notarization. See docs/VERIFICATION.md
+for the real recipient-mailbox test results and exact remaining limits.

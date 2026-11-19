@@ -8,7 +8,7 @@ OUT="${OUTPUT_DIR:-$PWD/dist}"
 mkdir -p "$OUT"
 [[ "$MODE" == preview || "$MODE" == signed ]] || { echo "MODE must be preview or signed"; exit 1; }
 if [[ "$MODE" == preview ]]; then SUFFIX=UNSIGNED-PREVIEW; else SUFFIX=SIGNED; fi
-NAME="CalendarMeet-0.4.1-$SUFFIX"
+NAME="CalendarMeet-0.4.2-$SUFFIX"
 # Stage outside cloud-synced Documents: file providers may add Finder metadata
 # to .app/.appex bundles after they were signed.
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/CalendarMeet-dmg.XXXXXX")"

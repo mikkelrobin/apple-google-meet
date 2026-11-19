@@ -1,14 +1,13 @@
-# Calendar Meet 0.4.0 setup
+# Calendar Meet 0.4.2 setup
 
 ## Google — once per team
 
 1. In a Google Cloud project owned by your Workspace organization, enable Google
-   Calendar API (`calendar-json.googleapis.com`). A project named Calendar Meet was created
+   Meet API (`meet.googleapis.com`). A project named Calendar Meet was created
    under the nanoping.com organization during this setup.
 2. Configure Google Auth Platform branding and **Internal** audience for colleagues
    in that same Workspace organization. This is a project-level configuration.
-3. Request `https://www.googleapis.com/auth/calendar.events` and
-   `https://www.googleapis.com/auth/calendar.calendarlist.readonly`.
+3. Request only `https://www.googleapis.com/auth/meetings.space.created`.
 4. Create a **Desktop app** OAuth client, name it Calendar Meet macOS, and download
    the JSON. A Web client or service account file will not work.
 5. Bundle that Desktop client during a local build with `GOOGLE_CLIENT_JSON`, or
@@ -34,11 +33,10 @@ No global Gatekeeper changes or removal of quarantine are needed by the app.
 Managed-device policies may prohibit this entirely.
 
 Enable its extension if requested in System Settings. Fully quit and reopen
-Calendar, then choose Google Meet in Add Location or Video Call. The containing
-app opens in the background, waits for the explicitly marked event to sync and adds a native Meet conference
-to that Google event. No Meet space is created separately.
-There is no confirmation or copy/paste step. The bridge has a 55-second timeout;
-Calendar may impose its own earlier deadline.
+Calendar, then choose Google Meet in Add Location or Video Call. A real Meet link
+is created and returned before the extension finishes, so guests are invited
+normally with the conference already present. No Calendar event is inserted or
+patched by this app. Google may convert the code and notify the organizer.
 
 Launch at Login defaults on. Click the menu-bar icon to reconnect or toggle it;
 right-click for Quit. The app has no Dock icon. It can be quit between uses. No shared Keychain or App Group is involved.

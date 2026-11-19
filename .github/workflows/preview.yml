@@ -32,7 +32,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v0.4.1-preview.${GITHUB_RUN_NUMBER}" dist/* \
+          gh release create "v0.4.2-preview.${GITHUB_RUN_NUMBER}" dist/* \
             --target "$GITHUB_SHA" --prerelease \
-            --title "Calendar Meet 0.4.1 — UNSIGNED DEVELOPER PREVIEW" \
+            --title "Calendar Meet 0.4.2 — UNSIGNED DEVELOPER PREVIEW" \
             --notes-file docs/PREVIEW-RELEASE.md
