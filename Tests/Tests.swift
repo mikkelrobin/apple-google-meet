@@ -160,8 +160,15 @@ struct Tests {
         for status in [400, 401, 403, 404, 412, 429, 500] {
             MockProtocol.handler = { _ in (status, #"{"error":"DO_NOT_DISPLAY_SECRET"}"#) }
             do { _ = try await calendar.event(calendarID: "x", eventID: "y", token: "a"); fatalError("Expected HTTP error") }
-            catch { expect(!error.localizedDescription.contains("DO_NOT_DISPLAY_SECRET"), "Response body not leaked") }
+            catch {
+                expect(!error.localizedDescription.contains("DO_NOT_DISPLAY_SECRET"), "Response body not leaked")
+                if status == 401 { expect(error is GoogleAuthorizationError, "Revoked login triggers disconnected status") }
+                if status == 400 { expect(!(error is GoogleAuthorizationError), "Invalid event request does not falsely sign out") }
+            }
         }
+        MockProtocol.handler = { _ in (400, #"{"error":"invalid_grant"}"#) }
+        do { _ = try await api.refresh(credential); fatalError("Revoked refresh accepted") }
+        catch { expect(error is GoogleAuthorizationError, "Revoked refresh token triggers disconnected status") }
         let conference = VirtualConferenceProvider.conferenceDescriptor(url: pending.url)
         expect(conference.urlDescriptors.count == 1, "Exactly one pending entry point")
         expect(conference.urlDescriptors.first?.url == pending.url, "Marker reaches EventKit unchanged")

@@ -1,4 +1,4 @@
-Calendar Meet 0.4.0 — macOS 13+, Apple Silicon and Intel
+Calendar Meet 0.4.1 — macOS 13+, Apple Silicon and Intel
 
 1. Open the DMG and drag Calendar Meet to Applications.
 2. Open Calendar Meet. This unsigned preview has no Developer ID signature or
@@ -31,3 +31,7 @@ Google for Calendar access; enable Google Calendar API in the team Cloud project
 
 Setup and exact verification limits:
 https://github.com/mikkelrobin/apple-google-meet/blob/main/docs/SETUP.md
+
+The menu-bar video symbol adapts to light/dark mode. Green dot means Google is
+signed in; red means sign-in/reconnect is needed. Sign Out removes local login
+and cancels unfinished requests. Existing Calendar events and Meet links remain.

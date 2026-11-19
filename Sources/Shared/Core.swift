@@ -7,6 +7,10 @@ struct MeetError: LocalizedError {
     init(_ message: String) { self.message = message }
 }
 
+struct GoogleAuthorizationError: LocalizedError {
+    var errorDescription: String? { "Google login expired or was revoked. Open Calendar Meet and reconnect." }
+}
+
 struct OAuthClient: Codable, Equatable {
     let clientID: String
     let clientSecret: String
@@ -130,7 +134,9 @@ struct GoogleAPI {
         guard (200...299).contains(http.statusCode) else {
             // Do not display response bodies: these can contain credentials or user data.
             switch http.statusCode {
-            case 400, 401: throw MeetError("Google login expired or was revoked. Open Calendar Meet and reconnect. (HTTP \(http.statusCode))")
+            case 401: throw GoogleAuthorizationError()
+            case 400 where request.url?.host == "oauth2.googleapis.com": throw GoogleAuthorizationError()
+            case 400: throw MeetError("Google could not accept this Calendar request (HTTP 400).")
             case 403: throw MeetError("Google denied access. Check Calendar API, consent, test users and your Workspace administrator. (HTTP 403)")
             case 404: throw MeetError("The Google Calendar event no longer exists.")
             case 412: throw MeetError("The event changed during setup. Waiting for Calendar to sync before retrying.")

@@ -3,7 +3,20 @@
 Native macOS Swift app and EventKit virtual conference extension adding **Google
 Meet** to Apple Calendar's **Add Location or Video Call** picker.
 
-## 0.4.0 — create Meet on the actual Google Calendar event
+## 0.4.1 — menu-bar connection status and sign-out
+
+The menu bar uses a monochrome template video symbol with a separate green
+(signed in) or red (signed out/reconnect required) dot. macOS adapts the symbol to
+light/dark appearance. The original app/installer icon is unchanged.
+
+Sign Out waits for cancelled in-flight work, removes the local Keychain login and
+clears pending/account-specific cached links. It preserves the team's Google
+configuration, existing Calendar events and native Meet conferences. Google OAuth
+grants are not revoked; they can be removed separately in Google Account settings.
+A rejected login/refresh switches status to disconnected when detected on use.
+The indicator represents account authentication, not live internet reachability.
+
+## Direct Meet creation on the actual Google Calendar event
 
 Keep creating events in Apple Calendar and manually choose Google Meet. The
 extension now inserts a unique local `calendarmeet://pending/...` setup link.

@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 import ServiceManagement
+import Combine
 
 @main
 struct CalendarMeetApp: App {
@@ -9,20 +10,51 @@ struct CalendarMeetApp: App {
     var body: some Scene { Settings { EmptyView() } }
 }
 
+// Decorative subviews must not intercept clicks intended for the status button.
+final class StatusGlyphView: NSImageView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+final class ConnectionDotView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let model = SetupModel()
     private var item: NSStatusItem!
     private let popover = NSPopover()
+    private let connectionDot = ConnectionDotView()
+    private var connectionSubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item = NSStatusBar.system.statusItem(withLength: 36)
         if let button = item.button {
-            let icon = NSImage(contentsOf: Bundle.main.url(forResource: "AppIcon", withExtension: "icns")!)
-            icon?.size = NSSize(width: 19, height: 19)
-            button.image = icon
-            button.toolTip = "Calendar Meet"
+            let symbol = NSImage(systemSymbolName: "video", accessibilityDescription: nil)!
+            symbol.isTemplate = true
+            let icon = StatusGlyphView(image: symbol)
+            icon.contentTintColor = .labelColor
+            icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            button.addSubview(icon)
+            connectionDot.translatesAutoresizingMaskIntoConstraints = false
+            connectionDot.wantsLayer = true
+            connectionDot.layer?.cornerRadius = 3.5
+            button.addSubview(connectionDot)
+            NSLayoutConstraint.activate([
+                icon.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 4),
+                icon.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+                icon.widthAnchor.constraint(equalToConstant: 18), icon.heightAnchor.constraint(equalToConstant: 18),
+                connectionDot.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 3),
+                connectionDot.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+                connectionDot.widthAnchor.constraint(equalToConstant: 7), connectionDot.heightAnchor.constraint(equalToConstant: 7)
+            ])
+            connectionSubscription = model.$connected.sink { [weak self] connected in
+                self?.connectionDot.layer?.backgroundColor = (connected ? NSColor.systemGreen : NSColor.systemRed).cgColor
+                let status = connected ? "Google connected" : "Google disconnected"
+                self?.item.button?.toolTip = "Calendar Meet — " + status
+                self?.item.button?.setAccessibilityLabel("Calendar Meet — " + status)
+            }
             button.target = self; button.action = #selector(clicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
@@ -134,6 +166,28 @@ final class SetupModel: ObservableObject {
         }
     }
     func cancel() { loginTask?.cancel() }
+    func signOut() {
+        guard !busy else { return }
+        busy = true
+        let work = reconciliation
+        work?.cancel()
+        Task { @MainActor in
+            // Wait for in-flight refresh/Calendar work before deleting credentials,
+            // so a late refresh cannot silently sign the user back in.
+            await work?.value
+            defer { busy = false }
+            do {
+                try Vault.remove()
+                pending.removeAll(); persistPending()
+                resolved.removeAll()
+                UserDefaults.standard.removeObject(forKey: "resolvedCalendarConferences")
+                connected = false; message = ""
+            } catch {
+                message = error.localizedDescription
+                startReconciliation()
+            }
+        }
+    }
 
     private var pending: [PendingConference] = {
         guard let data = UserDefaults.standard.data(forKey: "pendingCalendarConferences") else { return [] }
@@ -171,6 +225,7 @@ final class SetupModel: ObservableObject {
                         // Work on a snapshot: incoming Calendar requests may append while awaiting HTTP.
                         for var request in pending {
                             do {
+                            try Task.checkCancellation()
                             if Date().timeIntervalSince(request.createdAt) > 86400 {
                                 pending.removeAll { $0.id == request.id }; persistPending()
                                 message = "A Meet request expired. Choose Google Meet again on the saved Google Calendar event."
@@ -207,12 +262,14 @@ final class SetupModel: ObservableObject {
                                 guard latest.carries(request) else {
                                     pending.removeAll { $0.id == request.id }; persistPending(); continue
                                 }
+                                try Task.checkCancellation()
                                 result = try await api.create(on: latest, calendarID: calendarID, pending: request, token: token)
                             }
                             if result.conferenceData?.createRequest?.status?.statusCode == "failure" {
                                 throw MeetError("Google could not create this meeting. Remove the pending link and select Google Meet again.")
                             }
                             if let link = result.meetURL {
+                                try Task.checkCancellation()
                                 _ = try await api.finish(result, calendarID: calendarID, pending: request, token: token)
                                 resolved[request.id] = link.absoluteString
                                 if resolved.count > 100 { resolved = [request.id: link.absoluteString] }
@@ -220,9 +277,15 @@ final class SetupModel: ObservableObject {
                                 pending.removeAll { $0.id == request.id }; persistPending()
                                 message = pending.isEmpty ? "" : "Waiting for saved events to sync…"
                             }
-                            } catch { message = error.localizedDescription }
+                            } catch {
+                                if error is GoogleAuthorizationError { connected = false }
+                                if !(error is CancellationError) { message = error.localizedDescription }
+                            }
                         }
-                    } catch { message = error.localizedDescription }
+                    } catch {
+                        if error is GoogleAuthorizationError { connected = false }
+                        if !(error is CancellationError) { message = error.localizedDescription }
+                    }
                 }
                 try? await Task.sleep(nanoseconds: 10_000_000_000)
             }
@@ -289,6 +352,9 @@ struct SetupView: View {
             } else {
                 Button(model.connected ? "Reconnect Google Account" : "Sign in with Google", action: model.connect)
                     .buttonStyle(.borderedProminent).disabled(model.busy)
+                if model.connected {
+                    Button("Sign Out", action: model.signOut).disabled(model.busy)
+                }
             }
             if model.busy {
                 HStack {
