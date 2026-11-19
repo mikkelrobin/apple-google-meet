@@ -25,6 +25,9 @@
   com.mikkelrobin.CalendarMeet.Conference` listed **one plug-in** at the embedded
   extension path. This confirms system discovery, not execution inside Calendar.
 - Generated a drag-to-Applications DMG with preview warning and SHA-256 checksum.
+  Mounted the installer read-only and verified its embedded app signature,
+  Applications shortcut and preview warning. Packaging stages outside cloud-synced
+  Documents to prevent file-provider metadata invalidating the app signature.
 
 The active Command Line Tools emit a warning that their Swift compatibility packs
 archive lacks x86_64. Both binaries still link and contain both architectures.

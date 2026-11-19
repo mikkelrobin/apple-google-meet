@@ -8,9 +8,13 @@ OUT="${OUTPUT_DIR:-$PWD/dist}"
 mkdir -p "$OUT"
 if [[ "$MODE" == preview ]]; then SUFFIX=UNSIGNED-PREVIEW; else SUFFIX=SIGNED; fi
 NAME="CalendarMeet-0.1.0-$SUFFIX"
-STAGE="$BUILD/dmg-$SUFFIX"
-mkdir -p "$STAGE"
-ditto "$APP" "$STAGE/Calendar Meet.app"
+# Stage outside cloud-synced Documents: file providers may add Finder metadata
+# to .app/.appex bundles after they were signed.
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/CalendarMeet-dmg.XXXXXX")"
+trap 'rm -rf "$STAGE"' EXIT
+ditto --norsrc --noextattr "$APP" "$STAGE/Calendar Meet.app"
+xattr -cr "$STAGE/Calendar Meet.app"
+codesign --verify --deep --strict "$STAGE/Calendar Meet.app"
 ln -sfn /Applications "$STAGE/Applications"
 cp docs/INSTALL.txt "$STAGE/READ ME FIRST.txt"
 if [[ "$MODE" == preview ]]; then
