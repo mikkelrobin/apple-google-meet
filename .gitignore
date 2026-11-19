@@ -1,0 +1,12 @@
+.DS_Store
+build/
+dist/
+*.p12
+*.provisionprofile
+*client*.json
+*Client*.json
+*credentials*.json
+.env*
+
+__pycache__/
+*.pyc

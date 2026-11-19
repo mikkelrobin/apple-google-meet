@@ -1,0 +1,24 @@
+Calendar Meet — macOS 13 or later, Apple Silicon and Intel
+
+1. Open the DMG and drag Calendar Meet to Applications.
+2. Open Calendar Meet from Applications.
+3. Import your team's Google Desktop OAuth client JSON, unless already bundled.
+4. Connect Google and grant the Meet permission.
+5. Enable the Calendar Meet extension in System Settings if macOS asks.
+   Depending on macOS version, extensions appear under Privacy & Security >
+   Extensions, or General > Login Items & Extensions.
+6. Quit and reopen Apple Calendar. Create or edit an event. In Add Location or
+   Video Call, choose Google Meet. A fresh Google Meet link is attached.
+
+The app need not stay open. The Calendar extension creates meetings on demand.
+No Calendar permission is requested. Meetings are created using Google Meet's
+API; the extension doesn't create duplicate Google Calendar events.
+
+UNSIGNED-PREVIEW builds are development artifacts. Login is disabled because
+secure sharing with the sandboxed extension needs signed App Group provisioning.
+These builds are neither Developer ID signed nor notarized. macOS may block them.
+Use a signed, notarized release for colleagues. No global security changes are
+required or recommended.
+
+Setup and troubleshooting:
+https://github.com/mikkelrobin/apple-google-meet/blob/main/docs/SETUP.md

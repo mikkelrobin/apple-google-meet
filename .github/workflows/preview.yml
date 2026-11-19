@@ -1,0 +1,38 @@
+name: Build unsigned preview
+on:
+  push:
+    branches: [main]
+    paths: ['Sources/**', 'Scripts/**', 'Tests/**', 'docs/**', '.github/workflows/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests
+        run: bash Scripts/test.sh
+      - name: Universal build
+        run: bash Scripts/build.sh
+      - name: Unsigned installer
+        run: bash Scripts/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CalendarMeet-UNSIGNED-PREVIEW
+          path: dist/*
+      - name: Publish clearly labelled development prerelease
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v0.1.0-preview.${GITHUB_RUN_NUMBER}" dist/* \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Calendar Meet 0.1.0 — UNSIGNED DEVELOPER PREVIEW" \
+            --notes-file docs/PREVIEW-RELEASE.md
