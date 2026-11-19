@@ -12,8 +12,9 @@ its conference descriptor. No temporary setup URL goes into the invitation.
 The app no longer searches or patches Google Calendar events, polls pending
 requests, or sends conference/description update notifications to guests. Google
 can replace the fresh Meet code during Calendar sync and notify the organizer;
-the user explicitly accepts that organizer email. A recipient mailbox test is
-required before claiming that a particular account sends only one invitation.
+the user explicitly accepts that organizer email. A real Apple Calendar test on
+19 November 2026 delivered one recipient invitation with a matching, working Meet
+link and a separate organizer notice.
 See [verification](docs/VERIFICATION.md).
 
 Reconnect once for the `meetings.space.created` permission. Calendar API scopes

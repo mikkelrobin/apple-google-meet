@@ -37,9 +37,28 @@ credentials after logout. Retired Calendar queue/cache keys are cleared on upgra
 
 ## Live validation and limits
 
-Universal build, Google Meet reconnect and recipient-mailbox verification are in
-progress and will be recorded before delivery. The original icon, menu-bar-only
-behavior and the 0.4.1 connection indicator/sign-out changes are preserved.
+The universal build and packaged DMG passed bundle/signature validation. GitHub
+Actions run 44525480744 passed the automated tests, universal build and installer
+steps for commit 00b3105. The installed app was reconnected by the user.
+
+A real Apple Calendar test was sent at 13:39 CET on 19 November 2026:
+- Title: Calendar Meet 042 fallback invite test.
+- Date: 20 November 2026, 11:30–12:30 CET.
+- Manually selected Google Meet in the same event editor, then added the user's
+  authorized personal recipient and clicked Send. No separate save/reopen step.
+- The recipient's iCloud mailbox still showed exactly one result at 13:43 CET,
+  more than four minutes after sending, with no guest update messages. Its actual
+  HTML contained Join with Google Meet and a real HTTPS meet.google.com link.
+- The link exactly matched the saved event's native hangout_link, and opened
+  Google's pre-join screen in a separate browser session. No call was joined.
+- The organizer received Google's Updated video conference notice, as accepted
+  by the user. It was not another guest invitation.
+- The test event and received mail were left available for user inspection;
+  no cancellation or subsequent event edit was sent during verification.
+
+The original icon, menu-bar-only behavior and the 0.4.1 connection indicator/
+sign-out changes are preserved. This is an observed account-specific test;
+Google controls delivery and future user edits can cause ordinary updates.
 
 Google controls Calendar server conversion and organizer notices. The app cannot
 force the visible Open/Join label. No Developer ID/notarization credentials are
